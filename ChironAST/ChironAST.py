@@ -233,3 +233,7 @@ class Var(Value):
 
     def __str__(self):
         return self.varname
+
+class NameVal(Value): pass
+class FunctionExpr(Expression): pass
+class ReturnCommand(Instruction): pass

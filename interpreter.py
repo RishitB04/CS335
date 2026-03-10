@@ -135,11 +135,13 @@ class ConcreteInterpreter(Interpreter):
         match expr:
             case ChironAST.Num(): return expr.val
             case ChironAST.Var(): return self.variableCheck(expr.varname)
+            case ChironAST.NameVal(): return expr.val
             case ChironAST.UMinus(): return -self.expressionEvaluation(expr.expr)
             case ChironAST.Sum(): return self.expressionEvaluation(expr.lexpr) + self.expressionEvaluation(expr.rexpr)
             case ChironAST.Diff(): return self.expressionEvaluation(expr.lexpr) - self.expressionEvaluation(expr.rexpr)
             case ChironAST.Mult(): return self.expressionEvaluation(expr.lexpr) * self.expressionEvaluation(expr.rexpr)
             case ChironAST.Div(): return self.expressionEvaluation(expr.lexpr) / self.expressionEvaluation(expr.rexpr)
+            case ChironAST.FunctionExpr(): return self.executeFunction(expr.callname, expr.args)
             case _ : raise Exception(f"Unknown expression: {type(expr)}, {expr}.")
 
     def conditionEvaluation(self, cond):
@@ -157,6 +159,44 @@ class ConcreteInterpreter(Interpreter):
             case ChironAST.BoolTrue(): return True
             case ChironAST.BoolFalse(): return False
             case _ : raise Exception(f"Unknown condition: {type(cond)}, {cond}.")
+
+    def executeFunction(self, callname, args):
+        if len(self.call_stack) > 100:
+            raise Exception("Maximum call stack depth exceeded.")
+        
+        if isinstance(callname, ChironAST.Var):
+            function_name = self.variableCheck(callname.varname)
+        elif isinstance(callname, ChironAST.NameVal):
+            function_name = callname.val
+        else: raise Exception(f"Invalid function name: {callname}.")
+
+        if function_name not in self.function_def:
+            raise Exception(f"Undefined function: {function_name}.")
+        
+        arguments , start_pc = self.function_def[function_name]
+        if len(arguments) != len(args):
+            raise Exception(f"Argument count mismatch for function {function_name}.")
+        
+        eval_args = [self.expressionEvaluation(arg) for arg in args]
+
+        local_scope = dict(zip(arguments, eval_args))
+        self.stack.append(local_scope)
+        self.call_stack.append(self.pc)
+
+        self.pc = start_pc
+        ret_value = None
+
+        while self.pc < len(self.ir):
+            curr_stmt, curr_tgt = self.ir[self.pc]
+            if isinstance(curr_stmt, ChironAST.ReturnCommand):
+                ret_value = self.expressionEvaluation(curr_stmt.rexpr) if curr_stmt.rexpr else None
+                break
+            ntgt = self.executeInstruction(curr_stmt, curr_tgt)
+            self.pc += ntgt
+        
+        self.stack.pop()
+        self.pc = self.call_stack.pop()
+        return ret_value
 
     def handleAssignment(self, stmt):
         print("  Assignment Statement")
