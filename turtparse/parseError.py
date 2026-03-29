@@ -1,6 +1,5 @@
 class SyntaxException(Exception):
     def __init__(self, message, errors):
-        # Call the base class constructor with the parameters it needs
         self.message=message
         self.errors = errors
 
@@ -13,8 +12,11 @@ class SyntaxErrorListener():
     def syntaxError(self, recognizer, offendingSymbol, line, column, msg, e):
         raise SyntaxException("Syntax Error", (line, column, msg))
 
-    def reportAmbiguity(self):
-        raise ValueError("Ambiguity error.")
+    def reportAmbiguity(self, *args, **kwargs):
+        pass
 
-    def reportContextSensitivity(self):
-        raise ValueError("Exit due to context sensitivity.")
+    def reportContextSensitivity(self, *args, **kwargs):
+        pass
+
+    def reportAttemptingFullContext(self, *args, **kwargs):
+        pass

@@ -273,3 +273,11 @@ class FunctionCallCommand(Instruction):
     
     def __str__(self):
         return str(self.callname)
+
+class LambdaExpr(Expression):
+    def __init__(self, params, body_expr):
+        self.params = params
+        self.body_expr = body_expr
+    
+    def __str__(self):
+        return "lambda " + " ".join(self.params) + " => " + str(self.body_expr)

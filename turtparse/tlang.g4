@@ -53,9 +53,12 @@ expression :
            | expression multiplicative expression  #mulExpr
 		   | expression additive expression        #addExpr
 		   | functionCall				   	   	   #funcExpr
+		   | lambdaExpr							   #lambdaExpression
 		   | value                                 #valueExpr
 		   | '(' expression ')'                    #parenExpr
  	   ;
+
+lambdaExpr : 'lambda' (VAR)* '=>' expression ;
 
 multiplicative : MUL | DIV;
 additive : PLUS | MINUS;

@@ -11,7 +11,7 @@ import cfg.cfgBuilder as cfgB
 import cfg.ChironCFG as cfgK
 
 sys.path.insert(0, '../Submission/')
-from submissionDFA import *
+# from submissionDFA import *
 from abstractInterpretation import *
 
 class DataFlowAnalysis(AbstractInterpreter):

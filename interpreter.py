@@ -80,6 +80,7 @@ class ConcreteInterpreter(Interpreter):
         self.stack=[{}];
         self.call_stack=[];
         self.function_def={};
+        self.lambda_counter = 0;
         # Hooks Object:
         if self.args is not None and self.args.hooks:
             self.chironhook = Chironhooks.ConcreteChironHooks()
@@ -169,6 +170,7 @@ class ConcreteInterpreter(Interpreter):
                     raise Exception(f"Division operator cannot be applied to str values: {lval}, {rval}.")
                 return lval / rval
             case ChironAST.FunctionExpr(): return self.executeFunction(expr.callname, expr.args)
+            case ChironAST.LambdaExpr(): return self.handleLambdaExpr(expr)
             case _ : raise Exception(f"Unknown expression: {type(expr)}, {expr}.")
 
     def conditionEvaluation(self, cond):
@@ -203,7 +205,13 @@ class ConcreteInterpreter(Interpreter):
         if function_name not in self.function_def:
             raise Exception(f"Undefined function: {function_name}.")
         
-        arguments , start_pc = self.function_def[function_name]
+        func_entry = self.function_def[function_name]
+        
+        # Check if this is a lambda function
+        if isinstance(func_entry, dict) and func_entry.get('type') == 'lambda':
+            return self.executeLambda(func_entry, args)
+        
+        arguments , start_pc = func_entry
         if len(arguments) != len(args):
             raise Exception(f"Argument count mismatch for function {function_name}.")
         
@@ -280,3 +288,38 @@ class ConcreteInterpreter(Interpreter):
         self.function_def[stmt.funcname] = (stmt.params, self.pc + 1)
         return tgt
 
+    def handleLambdaExpr(self, expr):
+        self.lambda_counter += 1
+        lambda_name = f"__lambda_{self.lambda_counter}"
+        
+        captured_scope = {}
+        for scope in self.stack:
+            captured_scope.update(scope)
+        
+        self.function_def[lambda_name] = {
+            'type': 'lambda',
+            'params': expr.params,
+            'body': expr.body_expr,
+            'closure': captured_scope
+        }
+        
+        return lambda_name
+    
+    def executeLambda(self, lambda_def, args):
+        params = lambda_def['params']
+        body = lambda_def['body']
+        closure = lambda_def['closure']
+        
+        if len(params) != len(args):
+            raise Exception(f"Lambda argument count mismatch: expected {len(params)}, got {len(args)}.")
+        
+        eval_args = [self.expressionEvaluation(arg) for arg in args]
+        
+        local_scope = dict(closure)
+        local_scope.update(dict(zip(params, eval_args)))
+        
+        self.stack.append(local_scope)
+        ret_value = self.expressionEvaluation(body)
+        self.stack.pop()
+        
+        return ret_value

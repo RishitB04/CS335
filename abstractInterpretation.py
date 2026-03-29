@@ -11,7 +11,7 @@ import cfg.cfgBuilder as cfgB
 import cfg.ChironCFG as cfgK
 
 sys.path.insert(0, '../Submission/')
-from submissionAI import *
+# from submissionAI import *
 from interpreter import *
 from lattice import *
 
