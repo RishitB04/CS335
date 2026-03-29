@@ -49,13 +49,8 @@ class tlangVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by tlangParser#returnStatement.
-    def visitReturnStatement(self, ctx:tlangParser.ReturnStatementContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by tlangParser#conditional.
-    def visitConditional(self, ctx:tlangParser.ConditionalContext):
+    # Visit a parse tree produced by tlangParser#returnInstruction.
+    def visitReturnInstruction(self, ctx:tlangParser.ReturnInstructionContext):
         return self.visitChildren(ctx)
 
 
@@ -64,8 +59,13 @@ class tlangVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by tlangParser#ifElseConditional.
-    def visitIfElseConditional(self, ctx:tlangParser.IfElseConditionalContext):
+    # Visit a parse tree produced by tlangParser#elifConditional.
+    def visitElifConditional(self, ctx:tlangParser.ElifConditionalContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#elseConditional.
+    def visitElseConditional(self, ctx:tlangParser.ElseConditionalContext):
         return self.visitChildren(ctx)
 
 
@@ -134,11 +134,6 @@ class tlangVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by tlangParser#functionExpression.
-    def visitFunctionExpression(self, ctx:tlangParser.FunctionExpressionContext):
-        return self.visitChildren(ctx)
-
-
     # Visit a parse tree produced by tlangParser#multiplicative.
     def visitMultiplicative(self, ctx:tlangParser.MultiplicativeContext):
         return self.visitChildren(ctx)
@@ -146,11 +141,6 @@ class tlangVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by tlangParser#additive.
     def visitAdditive(self, ctx:tlangParser.AdditiveContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by tlangParser#unaryArithOp.
-    def visitUnaryArithOp(self, ctx:tlangParser.UnaryArithOpContext):
         return self.visitChildren(ctx)
 
 

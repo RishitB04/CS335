@@ -11,7 +11,7 @@ strict_ilist : (instruction)+
              ;
 
 instruction : assignment
-	    | conditional
+	    | ifConditional
 	    | loop
 	    | moveCommand
 	    | penCommand
@@ -19,20 +19,20 @@ instruction : assignment
 	    | pauseCommand
 		| functionDeclaration
 		| functionCall
-		| returnStatement
+		| returnInstruction
 	    ;
 
 call : NAME | VAR ;
 functionDeclaration : 'to' NAME (VAR)* strict_ilist 'end';
 functionCall : call '(' argumentList? ')' ;
 argumentList : expression (',' expression)* ;
-returnStatement : 'return' expression? ;
+returnInstruction : 'return' expression? ;
 
-conditional : ifConditional | ifElseConditional ;
+ifConditional : 'if' condition '[' strict_ilist ']' (elifConditional)* elseConditional? ;
 
-ifConditional : 'if' condition '[' strict_ilist ']' ;
+elifConditional : 'elif' condition '[' strict_ilist ']' ;
 
-ifElseConditional : 'if' condition '[' strict_ilist ']' 'else' '[' strict_ilist ']' ;
+elseConditional : 'else' '[' strict_ilist ']' ;
 
 loop : 'repeat' value '[' strict_ilist ']' ;
 
@@ -49,20 +49,16 @@ penCommand : 'penup' | 'pendown' ;
 pauseCommand : 'pause' ;
 
 expression : 
-             unaryArithOp expression               #unaryExpr
+             MINUS expression               	   #unaryExpr
            | expression multiplicative expression  #mulExpr
 		   | expression additive expression        #addExpr
-		   | functionExpression				   	   #funcExpr
+		   | functionCall				   	   	   #funcExpr
 		   | value                                 #valueExpr
 		   | '(' expression ')'                    #parenExpr
  	   ;
 
-functionExpression : call '(' argumentList? ')' ;
-
 multiplicative : MUL | DIV;
 additive : PLUS | MINUS;
-
-unaryArithOp : MINUS ;
 
 PLUS     : '+' ;
 MINUS    : '-' ;
@@ -70,7 +66,7 @@ MUL  	 : '*' ;
 DIV      : '/' ;
 
 condition : NOT condition
-          |expression binCondOp expression
+      | expression binCondOp expression
 	  | condition logicOp condition
 	  | PENCOND
 	  | '(' condition ')'

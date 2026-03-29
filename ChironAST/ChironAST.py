@@ -234,6 +234,42 @@ class Var(Value):
     def __str__(self):
         return self.varname
 
-class NameVal(Value): pass
-class FunctionExpr(Expression): pass
-class ReturnCommand(Instruction): pass
+# Work Done
+
+class NameVal(Value):
+    def __init__(self, fname):
+        self.val = fname
+    
+    def __str__(self):
+        return self.val
+
+class FunctionExpr(Expression):
+    def __init__(self, callname, args):
+        self.callname = callname
+        self.args = args
+    
+    def __str__(self):
+        return str(self.callname)
+
+class ReturnCommand(Instruction):
+    def __init__(self, rexpr):
+        self.rexpr = rexpr
+    
+    def __str__(self):
+        return "return " + (str(self.rexpr) if self.rexpr else "")
+
+class FunctionDefCommand(Instruction):
+    def __init__ (self, funcname, params):
+        self.funcname = funcname
+        self.params = params
+    
+    def __str__(self):
+        return str(self.funcname)
+
+class FunctionCallCommand(Instruction): 
+    def __init__(self, callname, args):
+        self.callname = callname
+        self.args = args
+    
+    def __str__(self):
+        return str(self.callname)

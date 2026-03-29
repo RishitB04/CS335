@@ -34,33 +34,33 @@ class Interpreter:
         turtle.bgcolor("white")
         turtle.hideturtle()
 
-    def handleAssignment(self, stmt,tgt):
+    def handleAssignment(self, stmt):
         raise NotImplementedError('Assignments are not handled!')
 
     def handleCondition(self, stmt, tgt):
         raise NotImplementedError('Conditions are not handled!')
 
-    def handleMove(self, stmt, tgt):
+    def handleMove(self, stmt):
         raise NotImplementedError('Moves are not handled!')
 
-    def handlePen(self, stmt, tgt):
+    def handlePen(self, stmt):
         raise NotImplementedError('Pens are not handled!')
 
-    def handleGotoCommand(self, stmt, tgt):
+    def handleGotoCommand(self, stmt):
         raise NotImplementedError('Gotos are not handled!')
 
-    def handleNoOpCommand(self, stmt, tgt):
+    def handleNoOpCommand(self,  tgt):
         raise NotImplementedError('No-Ops are not handled!')
 
-    def handlePauseCommand(self, stmt, tgt):
+    def handlePauseCommand(self):
         raise NotImplementedError('No-Ops are not handled!')
 
     def sanityCheck(self, irInstr):
         stmt, tgt = irInstr
         # if not a condition command, rel. jump can't be anything but 1
-        if not isinstance(stmt, ChironAST.ConditionCommand):
+        if not (isinstance(stmt, ChironAST.ConditionCommand) or isinstance(stmt, ChironAST.FunctionDefCommand) or isinstance(stmt, ChironAST.NoOpCommand)):
             if tgt != 1:
-                raise ValueError("Improper relative jump for non-conditional instruction", str(stmt), tgt)
+                raise ValueError("Improper relative jump ", str(stmt), tgt)
     
     def interpret(self):
         pass
@@ -92,8 +92,11 @@ class ConcreteInterpreter(Interpreter):
             case ChironAST.MoveCommand(): return self.handleMove(stmt)
             case ChironAST.PenCommand(): return self.handlePen(stmt)
             case ChironAST.GotoCommand(): return self.handleGotoCommand(stmt)
-            case ChironAST.NoOpCommand(): return self.handleNoOpCommand()
+            case ChironAST.NoOpCommand(): return self.handleNoOpCommand(tgt)
             case ChironAST.PauseCommand(): return self.handlePauseCommand()
+            case ChironAST.FunctionCallCommand(): return self.handleFunctionCallCommand(stmt)
+            case ChironAST.FunctionDefCommand(): return self.handleFunctionDefCommand(stmt,tgt)
+            case ChironAST.ReturnCommand(): return tgt
             case _ : raise Exception(f"Unknown instruction: {type(stmt)}, {stmt}.")
 
     def interpret(self):
@@ -136,28 +139,55 @@ class ConcreteInterpreter(Interpreter):
             case ChironAST.Num(): return expr.val
             case ChironAST.Var(): return self.variableCheck(expr.varname)
             case ChironAST.NameVal(): return expr.val
-            case ChironAST.UMinus(): return -self.expressionEvaluation(expr.expr)
-            case ChironAST.Sum(): return self.expressionEvaluation(expr.lexpr) + self.expressionEvaluation(expr.rexpr)
-            case ChironAST.Diff(): return self.expressionEvaluation(expr.lexpr) - self.expressionEvaluation(expr.rexpr)
-            case ChironAST.Mult(): return self.expressionEvaluation(expr.lexpr) * self.expressionEvaluation(expr.rexpr)
-            case ChironAST.Div(): return self.expressionEvaluation(expr.lexpr) / self.expressionEvaluation(expr.rexpr)
+            case ChironAST.UMinus():
+                val = self.expressionEvaluation(expr.expr)
+                if isinstance(val, str):
+                    raise Exception(f"Unary minus cannot be applied to str value: {val}.")
+                return -val
+            case ChironAST.Sum():
+                lval = self.expressionEvaluation(expr.lexpr)
+                rval = self.expressionEvaluation(expr.rexpr)
+                if isinstance(lval, str) or isinstance(rval, str):
+                    raise Exception(f"Sum operator cannot be applied to str values: {lval}, {rval}.")
+                return lval + rval
+            case ChironAST.Diff():
+                lval = self.expressionEvaluation(expr.lexpr)
+                rval = self.expressionEvaluation(expr.rexpr)
+                if isinstance(lval, str) or isinstance(rval, str):
+                    raise Exception(f"Subtraction operator cannot be applied to str values: {lval}, {rval}.")
+                return lval - rval
+            case ChironAST.Mult():
+                lval = self.expressionEvaluation(expr.lexpr)
+                rval = self.expressionEvaluation(expr.rexpr)
+                if isinstance(lval, str) or isinstance(rval, str):
+                    raise Exception(f"Multiplication operator cannot be applied to str values: {lval}, {rval}.")
+                return lval * rval
+            case ChironAST.Div():
+                lval = self.expressionEvaluation(expr.lexpr)
+                rval = self.expressionEvaluation(expr.rexpr)
+                if isinstance(lval, str) or isinstance(rval, str):
+                    raise Exception(f"Division operator cannot be applied to str values: {lval}, {rval}.")
+                return lval / rval
             case ChironAST.FunctionExpr(): return self.executeFunction(expr.callname, expr.args)
             case _ : raise Exception(f"Unknown expression: {type(expr)}, {expr}.")
 
     def conditionEvaluation(self, cond):
         match cond:
-            case ChironAST.LT(): return self.expressionEvaluation(cond.lexpr) < self.expressionEvaluation(cond.rexpr)
-            case ChironAST.LTE(): return self.expressionEvaluation(cond.lexpr) <= self.expressionEvaluation(cond.rexpr)
-            case ChironAST.GT(): return self.expressionEvaluation(cond.lexpr) > self.expressionEvaluation(cond.rexpr)
-            case ChironAST.GTE(): return self.expressionEvaluation(cond.lexpr) >= self.expressionEvaluation(cond.rexpr)
-            case ChironAST.AND(): return self.conditionEvaluation(cond.lexpr) and self.conditionEvaluation(cond.rexpr)
-            case ChironAST.OR(): return self.conditionEvaluation(cond.lexpr) or self.conditionEvaluation(cond.rexpr)
-            case ChironAST.EQ(): return self.expressionEvaluation(cond.lexpr) == self.expressionEvaluation(cond.rexpr)
-            case ChironAST.NEQ(): return self.expressionEvaluation(cond.lexpr) != self.expressionEvaluation(cond.rexpr)
             case ChironAST.NOT(): return not self.conditionEvaluation(cond.expr)
             case ChironAST.PenStatus(): return self.trtl.isdown()
             case ChironAST.BoolTrue(): return True
             case ChironAST.BoolFalse(): return False
+            case ChironAST.AND(): return self.conditionEvaluation(cond.lexpr) and self.conditionEvaluation(cond.rexpr)
+            case ChironAST.OR(): return self.conditionEvaluation(cond.lexpr) or self.conditionEvaluation(cond.rexpr)
+        lval = self.expressionEvaluation(cond.lexpr)
+        rval = self.expressionEvaluation(cond.rexpr)
+        match cond:
+            case ChironAST.LT(): return lval < rval
+            case ChironAST.LTE(): return lval <= rval
+            case ChironAST.GT(): return lval > rval
+            case ChironAST.GTE(): return lval >= rval
+            case ChironAST.EQ(): return lval == rval
+            case ChironAST.NEQ(): return lval != rval
             case _ : raise Exception(f"Unknown condition: {type(cond)}, {cond}.")
 
     def executeFunction(self, callname, args):
@@ -218,9 +248,9 @@ class ConcreteInterpreter(Interpreter):
         else: raise Exception(f"Unknown move direction: {stmt.direction}.")
         return 1
 
-    def handleNoOpCommand(self):
+    def handleNoOpCommand(self, tgt):
         print("  No-Op Command")
-        return 1
+        return tgt
 
     def handlePen(self, stmt):
         print("  PenCommand")
@@ -239,3 +269,14 @@ class ConcreteInterpreter(Interpreter):
     def handlePauseCommand(self):
         print(" PauseCommand")
         return 1
+    
+    def handleFunctionCallCommand(self,stmt):
+        print(" FunctionCallCommand")
+        self.executeFunction(stmt.callname, stmt.args)
+        return 1
+    
+    def handleFunctionDefCommand(self, stmt, tgt):
+        print(" FunctionDefCommand")
+        self.function_def[stmt.funcname] = (stmt.params, self.pc + 1)
+        return tgt
+

@@ -43,18 +43,46 @@ class astGenPass(tlangVisitor):
         rval = self.visit(ctx.expression())
         return [(ChironAST.AssignmentCommand(lval, rval), 1)]
 
-
-    def visitIfConditional(self, ctx:tlangParser.IfConditionalContext):
-        condObj = ChironAST.ConditionCommand(self.visit(ctx.condition()))
-        thenInstrList = self.visit(ctx.strict_ilist())
-        return [(condObj, len(thenInstrList) + 1)] + thenInstrList
-
-    def visitIfElseConditional(self, ctx:tlangParser.IfElseConditionalContext):
-        condObj = ChironAST.ConditionCommand(self.visit(ctx.condition()))
-        thenInstrList = self.visit(ctx.strict_ilist(0))
-        elseInstrList = self.visit(ctx.strict_ilist(1))
-        jumpOverElseBlock = [(ChironAST.ConditionCommand(ChironAST.BoolFalse()), len(elseInstrList) + 1)]
-        return [(condObj, len(thenInstrList) + 2)] + thenInstrList + jumpOverElseBlock + elseInstrList
+# Modified ifelse IR generation
+    def visitIfConditional(self, ctx:tlangParser.ConditionalContext):
+        ifCondition = self.visit(ctx.condition())
+        ifScopeIR = []
+        for instr in ctx.strict_ilist().instruction():
+            ifScopeIR.extend(self.visit(instr))
+        
+        elseScopeIR = []
+        if ctx.elseConditional():
+            for inst in ctx.elseConditional().strict_ilist().instruction():
+                elseScopeIR.extend(self.visit(inst))
+        
+        elifs = []
+        for elif_ctx in ctx.elifConditional():
+            elifCondition = self.visit(elif_ctx.condition())
+            elifScopeIR = []
+            for instr in elif_ctx.strict_ilist().instruction():
+                elifScopeIR.extend(self.visit(instr))
+            elifs.append((elifCondition, elifScopeIR))
+        
+        for elifCondition, elifScopeIR in reversed(elifs):
+            if elseScopeIR:
+                jmp_nxt = len(elifScopeIR) + 2
+                jmp_end = len(elseScopeIR) + 1
+                elif_block = [(ChironAST.ConditionCommand(elifCondition), jmp_nxt)] + elifScopeIR + [(ChironAST.NoOpCommand(), jmp_end)]
+            else:
+                jmp_nxt = len(elifScopeIR) + 1
+                elif_block = [(ChironAST.ConditionCommand(elifCondition), jmp_nxt)] + elifScopeIR
+            
+            elseScopeIR = elif_block + elseScopeIR
+            
+        if elseScopeIR:
+            jmp_nxt = len(ifScopeIR) + 2
+            jmp_end = len(elseScopeIR) + 1
+            completeIR = [(ChironAST.ConditionCommand(ifCondition), jmp_nxt)] + ifScopeIR + [(ChironAST.NoOpCommand(), jmp_end)] + elseScopeIR
+        else:
+            jmp_nxt = len(ifScopeIR) + 1
+            completeIR = [(ChironAST.ConditionCommand(ifCondition), jmp_nxt)] + ifScopeIR
+            
+        return completeIR
 
     def visitGotoCommand(self, ctx:tlangParser.GotoCommandContext):
         xcor = self.visit(ctx.expression(0))
@@ -64,7 +92,7 @@ class astGenPass(tlangVisitor):
     # Visit a parse tree produced by tlangParser#unaryExpr.
     def visitUnaryExpr(self, ctx:tlangParser.UnaryExprContext):
         expr1 = self.visit(ctx.expression())
-        if ctx.unaryArithOp().MINUS():
+        if ctx.MINUS():
             return ChironAST.UMinus(expr1)
         
         return self.visitChildren(ctx)
@@ -144,6 +172,8 @@ class astGenPass(tlangVisitor):
             return ChironAST.Num(ctx.NUM().getText())
         elif ctx.VAR():
             return ChironAST.Var(ctx.VAR().getText())
+        elif ctx.NAME():
+            return ChironAST.NameVal(ctx.NAME().getText())
 
     def visitLoop(self, ctx:tlangParser.LoopContext):
         # insert counter variable in IR for tracking repeat count
@@ -172,3 +202,54 @@ class astGenPass(tlangVisitor):
 
     def visitPenCommand(self, ctx:tlangParser.PenCommandContext):
         return [(ChironAST.PenCommand(ctx.getText()), 1)]
+    
+    def visitFunctionDeclaration(self, ctx:tlangParser.FunctionDeclarationContext):
+        funcname = ctx.NAME().getText()
+        params = [p.getText() for p in ctx.VAR()]
+
+        self.scope = getattr(self, "scope", 0) + 1
+
+        instructionList = []
+
+        for inst in ctx.strict_ilist().instruction():
+            instructionList.extend(self.visit(inst))
+
+        self.scope -= 1
+
+        declAttr = ChironAST.FunctionDefCommand(funcname, params)
+        explicitReturn = ChironAST.ReturnCommand(None)
+        jmpTgt = len(instructionList) + 2
+
+        return [(declAttr, jmpTgt)] + instructionList + [(explicitReturn, 1)]
+    
+    def visitReturnInstruction(self, ctx:tlangParser.ReturnInstructionContext):
+        if getattr(self, "scope", 0) == 0:
+            raise Exception("return statement not allowed in global scope")
+        
+        rexpr = self.visit(ctx.expression()) if ctx.expression() else None
+        return [(ChironAST.ReturnCommand(rexpr), 1)]
+    
+    def buildFunctionCall(self, ctx:tlangParser.FunctionCallContext):
+        if ctx.call().NAME():
+            callname = ChironAST.NameVal(ctx.call().NAME().getText())
+        elif ctx.call().VAR():
+            callname = ChironAST.Var(ctx.call().VAR().getText())
+        else:
+            raise Exception("Invalid function call")
+        
+        args = []
+        if ctx.argumentList():
+            for arg in ctx.argumentList().expression():
+                args.append(self.visit(arg))
+        
+        return callname, args
+    
+    def visitFunctionCall(self, ctx:tlangParser.FunctionCallContext):
+        callname, args = self.buildFunctionCall(ctx)
+        return [(ChironAST.FunctionCallCommand(callname, args), 1)]
+    
+    def visitFuncExpr(self, ctx:tlangParser.FuncExprContext):
+        callname, args = self.buildFunctionCall(ctx.functionCall())
+        return ChironAST.FunctionExpr(callname, args)
+    
+        
