@@ -6,7 +6,7 @@ Module to generate a test-suite with optimized number of tests.
 import sys
 
 sys.path.insert(0, "../Submission/")
-from sbflSubmission import fitnessScore
+# from sbflSubmission import fitnessScore
 import copy
 import csv
 import random

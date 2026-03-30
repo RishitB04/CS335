@@ -20,7 +20,7 @@ import uuid
 from interpreter import *
 
 sys.path.insert(0, "../Submission/")
-from fuzzSubmission import *
+# from fuzzSubmission import *
 
 
 class InputObject:

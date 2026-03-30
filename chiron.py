@@ -21,9 +21,9 @@ from irhandler import *
 from fuzzer import *
 import sExecution as se
 import cfg.cfgBuilder as cfgB
-import submissionDFA as DFASub
-import submissionAI as AISub
-from sbflSubmission import computeRanks
+# import submissionDFA as DFASub
+# import submissionAI as AISub
+# from sbflSubmission import computeRanks
 import csv
 
 

@@ -1,4 +1,4 @@
-# Generated from tlang.g4 by ANTLR 4.13.2
+# Generated from turtparse/tlang.g4 by ANTLR 4.13.2
 from antlr4 import *
 if "." in __name__:
     from .tlangParser import tlangParser
@@ -104,6 +104,11 @@ class tlangVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by tlangParser#lambdaExpression.
+    def visitLambdaExpression(self, ctx:tlangParser.LambdaExpressionContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by tlangParser#unaryExpr.
     def visitUnaryExpr(self, ctx:tlangParser.UnaryExprContext):
         return self.visitChildren(ctx)
@@ -131,6 +136,11 @@ class tlangVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by tlangParser#parenExpr.
     def visitParenExpr(self, ctx:tlangParser.ParenExprContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#lambdaExpr.
+    def visitLambdaExpr(self, ctx:tlangParser.LambdaExprContext):
         return self.visitChildren(ctx)
 
 

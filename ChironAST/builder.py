@@ -44,7 +44,7 @@ class astGenPass(tlangVisitor):
         return [(ChironAST.AssignmentCommand(lval, rval), 1)]
 
 # Modified ifelse IR generation
-    def visitIfConditional(self, ctx:tlangParser.ConditionalContext):
+    def visitIfConditional(self, ctx:tlangParser.IfConditionalContext):
         ifCondition = self.visit(ctx.condition())
         ifScopeIR = []
         for instr in ctx.strict_ilist().instruction():
@@ -251,5 +251,11 @@ class astGenPass(tlangVisitor):
     def visitFuncExpr(self, ctx:tlangParser.FuncExprContext):
         callname, args = self.buildFunctionCall(ctx.functionCall())
         return ChironAST.FunctionExpr(callname, args)
+
+    def visitLambdaExpression(self, ctx:tlangParser.LambdaExpressionContext):
+        return self.visit(ctx.lambdaExpr())
     
-        
+    def visitLambdaExpr(self, ctx:tlangParser.LambdaExprContext):
+        params = [p.getText() for p in ctx.VAR()]
+        body_expr = self.visit(ctx.expression())
+        return ChironAST.LambdaExpr(params, body_expr)
