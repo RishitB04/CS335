@@ -281,3 +281,22 @@ class LambdaExpr(Expression):
     
     def __str__(self):
         return "lambda " + " ".join(self.params) + " => " + str(self.body_expr)
+    
+class LazyExpr(Expression):
+    """Lazy expression: lazy expr — defers evaluation until value is needed"""
+    def __init__(self, expr):
+        self.expr = expr
+    
+    def __str__(self):
+        return f"lazy {self.expr}"
+
+class RangeExpr(Expression):
+    """Range expression: [1..10] for finite, [1..] for infinite"""
+    def __init__(self, start_expr, end_expr=None):
+        self.start_expr = start_expr
+        self.end_expr = end_expr
+    
+    def __str__(self):
+        if self.end_expr:
+            return f"[{self.start_expr}..{self.end_expr}]"
+        return f"[{self.start_expr}..]"
