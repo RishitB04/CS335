@@ -259,3 +259,19 @@ class astGenPass(tlangVisitor):
         params = [p.getText() for p in ctx.VAR()]
         body_expr = self.visit(ctx.expression())
         return ChironAST.LambdaExpr(params, body_expr)
+
+    def visitLazyExpression(self, ctx:tlangParser.LazyExpressionContext):
+        return self.visit(ctx.lazyExpr())
+    
+    def visitLazyExpr(self, ctx:tlangParser.LazyExprContext):
+        expr = self.visit(ctx.expression())
+        return ChironAST.LazyExpr(expr)
+    
+    def visitRangeExpression(self, ctx:tlangParser.RangeExpressionContext):
+        return self.visit(ctx.rangeExpr())
+    
+    def visitRangeExpr(self, ctx:tlangParser.RangeExprContext):
+        exprs = ctx.expression()
+        start_expr = self.visit(exprs[0])
+        end_expr = self.visit(exprs[1]) if len(exprs) > 1 else None
+        return ChironAST.RangeExpr(start_expr, end_expr)

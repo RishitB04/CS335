@@ -5,6 +5,41 @@ import turtle
 
 Release="Chiron v5.3"
 
+# -- Lazy Evaluation Support --
+
+class Thunk:
+    """A deferred computation. Stores the expression and the scope snapshot.
+    Evaluated only when forceValue() is called. Result is cached (memoized)."""
+    def __init__(self, expr, scope_snapshot):
+        self.expr = expr
+        self.scope_snapshot = scope_snapshot
+        self.evaluated = False
+        self.cached_value = None
+    
+    def __str__(self):
+        if self.evaluated:
+            return f"Thunk(cached={self.cached_value})"
+        return f"Thunk(unevaluated={self.expr})"
+
+class InfiniteRange:
+    """Represents a lazy infinite range [start..]. Elements are generated on demand."""
+    def __init__(self, start):
+        self.start = start
+        self.generated = []
+    
+    def get(self, index):
+        while len(self.generated) <= index:
+            self.generated.append(self.start + len(self.generated))
+        return self.generated[index]
+    
+    def take_n(self, n):
+        return [self.get(i) for i in range(n)]
+    
+    def __str__(self):
+        if self.generated:
+            return f"[{self.start}.. (generated {len(self.generated)} elements)]"
+        return f"[{self.start}..]"
+
 class Interpreter:
     # Turtle program should not contain variable with names "ir", "pc", "t_screen"
     ir = None
@@ -141,36 +176,38 @@ class ConcreteInterpreter(Interpreter):
             case ChironAST.Var(): return self.variableCheck(expr.varname)
             case ChironAST.NameVal(): return expr.val
             case ChironAST.UMinus():
-                val = self.expressionEvaluation(expr.expr)
+                val = self.forceValue(self.expressionEvaluation(expr.expr))
                 if isinstance(val, str):
                     raise Exception(f"Unary minus cannot be applied to str value: {val}.")
                 return -val
             case ChironAST.Sum():
-                lval = self.expressionEvaluation(expr.lexpr)
-                rval = self.expressionEvaluation(expr.rexpr)
+                lval = self.forceValue(self.expressionEvaluation(expr.lexpr))
+                rval = self.forceValue(self.expressionEvaluation(expr.rexpr))
                 if isinstance(lval, str) or isinstance(rval, str):
                     raise Exception(f"Sum operator cannot be applied to str values: {lval}, {rval}.")
                 return lval + rval
             case ChironAST.Diff():
-                lval = self.expressionEvaluation(expr.lexpr)
-                rval = self.expressionEvaluation(expr.rexpr)
+                lval = self.forceValue(self.expressionEvaluation(expr.lexpr))
+                rval = self.forceValue(self.expressionEvaluation(expr.rexpr))
                 if isinstance(lval, str) or isinstance(rval, str):
                     raise Exception(f"Subtraction operator cannot be applied to str values: {lval}, {rval}.")
                 return lval - rval
             case ChironAST.Mult():
-                lval = self.expressionEvaluation(expr.lexpr)
-                rval = self.expressionEvaluation(expr.rexpr)
+                lval = self.forceValue(self.expressionEvaluation(expr.lexpr))
+                rval = self.forceValue(self.expressionEvaluation(expr.rexpr))
                 if isinstance(lval, str) or isinstance(rval, str):
                     raise Exception(f"Multiplication operator cannot be applied to str values: {lval}, {rval}.")
                 return lval * rval
             case ChironAST.Div():
-                lval = self.expressionEvaluation(expr.lexpr)
-                rval = self.expressionEvaluation(expr.rexpr)
+                lval = self.forceValue(self.expressionEvaluation(expr.lexpr))
+                rval = self.forceValue(self.expressionEvaluation(expr.rexpr))
                 if isinstance(lval, str) or isinstance(rval, str):
                     raise Exception(f"Division operator cannot be applied to str values: {lval}, {rval}.")
                 return lval / rval
             case ChironAST.FunctionExpr(): return self.executeFunction(expr.callname, expr.args)
             case ChironAST.LambdaExpr(): return self.handleLambdaExpr(expr)
+            case ChironAST.LazyExpr(): return self.handleLazyExpr(expr)
+            case ChironAST.RangeExpr(): return self.handleRangeExpr(expr)
             case _ : raise Exception(f"Unknown expression: {type(expr)}, {expr}.")
 
     def conditionEvaluation(self, cond):
@@ -181,8 +218,8 @@ class ConcreteInterpreter(Interpreter):
             case ChironAST.BoolFalse(): return False
             case ChironAST.AND(): return self.conditionEvaluation(cond.lexpr) and self.conditionEvaluation(cond.rexpr)
             case ChironAST.OR(): return self.conditionEvaluation(cond.lexpr) or self.conditionEvaluation(cond.rexpr)
-        lval = self.expressionEvaluation(cond.lexpr)
-        rval = self.expressionEvaluation(cond.rexpr)
+        lval = self.forceValue(self.expressionEvaluation(cond.lexpr))
+        rval = self.forceValue(self.expressionEvaluation(cond.rexpr))
         match cond:
             case ChironAST.LT(): return lval < rval
             case ChironAST.LTE(): return lval <= rval
@@ -203,6 +240,10 @@ class ConcreteInterpreter(Interpreter):
         else: raise Exception(f"Invalid function name: {callname}.")
 
         if function_name not in self.function_def:
+            # Check built-in functions first
+            builtin_result = self.tryBuiltinFunction(function_name, args)
+            if builtin_result is not None:
+                return builtin_result
             raise Exception(f"Undefined function: {function_name}.")
         
         func_entry = self.function_def[function_name]
@@ -248,7 +289,7 @@ class ConcreteInterpreter(Interpreter):
 
     def handleMove(self, stmt):
         print("  MoveCommand")
-        dist = self.expressionEvaluation(stmt.expr)
+        dist = self.forceValue(self.expressionEvaluation(stmt.expr))
         if stmt.direction == "forward": self.trtl.forward(dist)
         elif stmt.direction == "backward": self.trtl.backward(dist)
         elif stmt.direction == "left": self.trtl.left(dist)
@@ -269,8 +310,8 @@ class ConcreteInterpreter(Interpreter):
 
     def handleGotoCommand(self, stmt):
         print(" GotoCommand")
-        xcor = self.expressionEvaluation(stmt.xcor)
-        ycor = self.expressionEvaluation(stmt.ycor)
+        xcor = self.forceValue(self.expressionEvaluation(stmt.xcor))
+        ycor = self.forceValue(self.expressionEvaluation(stmt.ycor))
         self.trtl.goto(xcor, ycor)
         return 1
     
@@ -323,3 +364,167 @@ class ConcreteInterpreter(Interpreter):
         self.stack.pop()
         
         return ret_value
+
+    # -- Lazy Evaluation Methods --
+
+    def forceValue(self, val):
+        """Force a thunk to evaluate. If already a concrete value, return as-is.
+        Called transparently whenever a concrete value is needed."""
+        if isinstance(val, Thunk):
+            if not val.evaluated:
+                old_stack = self.stack
+                self.stack = val.scope_snapshot + [{}]
+                val.cached_value = self.forceValue(self.expressionEvaluation(val.expr))
+                self.stack = old_stack
+                val.evaluated = True
+            return val.cached_value
+        return val
+    
+    def handleLazyExpr(self, expr):
+        """Create a thunk — a deferred computation that captures the current scope."""
+        scope_snapshot = [dict(scope) for scope in self.stack]
+        return Thunk(expr.expr, scope_snapshot)
+    
+    def handleRangeExpr(self, expr):
+        """Handle range expressions: [1..10] for finite, [1..] for infinite."""
+        start = int(self.forceValue(self.expressionEvaluation(expr.start_expr)))
+        if expr.end_expr is not None:
+            end = int(self.forceValue(self.expressionEvaluation(expr.end_expr)))
+            return list(range(start, end + 1))
+        else:
+            return InfiniteRange(start)
+    
+    def callFunctionByName(self, func_name, arg_values):
+        """Helper: call a function by name with already-evaluated argument values."""
+        temp_args = []
+        temp_scope = {}
+        for i, val in enumerate(arg_values):
+            temp_var = f":__arg_{i}"
+            temp_scope[temp_var] = val
+            temp_args.append(ChironAST.Var(temp_var))
+        
+        self.stack.append(temp_scope)
+        result = self.executeFunction(ChironAST.NameVal(func_name), temp_args)
+        self.stack.pop()
+        return result
+
+    def tryBuiltinFunction(self, function_name, args):
+        """Handle built-in functions. Returns None if not a built-in."""
+        
+        if function_name == "force":
+            if len(args) != 1:
+                raise Exception("force requires exactly 1 argument")
+            val = self.expressionEvaluation(args[0])
+            return self.forceValue(val)
+        
+        elif function_name == "take":
+            if len(args) != 2:
+                raise Exception("take requires exactly 2 arguments: take(n, list)")
+            n = int(self.forceValue(self.expressionEvaluation(args[0])))
+            lst = self.expressionEvaluation(args[1])
+            if isinstance(lst, InfiniteRange):
+                return lst.take_n(n)
+            if isinstance(lst, list):
+                return lst[:n]
+            raise Exception(f"take second argument must be a list or range, got: {type(lst)}")
+        
+        elif function_name == "head":
+            if len(args) != 1:
+                raise Exception("head requires exactly 1 argument")
+            lst = self.expressionEvaluation(args[0])
+            if isinstance(lst, InfiniteRange):
+                return lst.get(0)
+            if not isinstance(lst, list) or len(lst) == 0:
+                raise Exception("head called on empty or non-list")
+            return lst[0]
+        
+        elif function_name == "tail":
+            if len(args) != 1:
+                raise Exception("tail requires exactly 1 argument")
+            lst = self.expressionEvaluation(args[0])
+            if isinstance(lst, InfiniteRange):
+                return InfiniteRange(lst.start + 1)
+            if not isinstance(lst, list) or len(lst) == 0:
+                raise Exception("tail called on empty or non-list")
+            return lst[1:]
+        
+        elif function_name == "length":
+            if len(args) != 1:
+                raise Exception("length requires exactly 1 argument")
+            lst = self.expressionEvaluation(args[0])
+            if isinstance(lst, InfiniteRange):
+                raise Exception("Cannot take length of infinite range")
+            if not isinstance(lst, list):
+                raise Exception("length called on non-list")
+            return len(lst)
+        
+        elif function_name == "nth":
+            if len(args) != 2:
+                raise Exception("nth requires exactly 2 arguments: nth(list, index)")
+            lst = self.expressionEvaluation(args[0])
+            idx = int(self.forceValue(self.expressionEvaluation(args[1])))
+            if isinstance(lst, InfiniteRange):
+                return lst.get(idx)
+            if not isinstance(lst, list):
+                raise Exception("nth first argument must be a list")
+            if idx < 0 or idx >= len(lst):
+                raise Exception(f"nth index {idx} out of bounds for list of length {len(lst)}")
+            return lst[idx]
+        
+        elif function_name == "cons":
+            if len(args) != 2:
+                raise Exception("cons requires exactly 2 arguments: cons(elem, list)")
+            elem = self.expressionEvaluation(args[0])
+            lst = self.expressionEvaluation(args[1])
+            if not isinstance(lst, list):
+                raise Exception("cons second argument must be a list")
+            return [elem] + lst
+        
+        elif function_name == "zipWith":
+            if len(args) != 3:
+                raise Exception("zipWith requires exactly 3 arguments: zipWith(func, list1, list2)")
+            func_name_val = self.expressionEvaluation(args[0])
+            lst1 = self.expressionEvaluation(args[1])
+            lst2 = self.expressionEvaluation(args[2])
+            if isinstance(lst1, InfiniteRange) and isinstance(lst2, InfiniteRange):
+                raise Exception("zipWith cannot operate on two infinite ranges. Use take() on at least one.")
+            if isinstance(lst1, InfiniteRange):
+                lst1 = lst1.take_n(len(lst2))
+            if isinstance(lst2, InfiniteRange):
+                lst2 = lst2.take_n(len(lst1))
+            if not isinstance(lst1, list) or not isinstance(lst2, list):
+                raise Exception("zipWith arguments must be lists")
+            min_len = min(len(lst1), len(lst2))
+            return [self.callFunctionByName(func_name_val, [lst1[i], lst2[i]]) for i in range(min_len)]
+        
+        elif function_name == "map":
+            if len(args) != 2:
+                raise Exception("map requires exactly 2 arguments: map(func, list)")
+            fn = self.expressionEvaluation(args[0])
+            lst = self.expressionEvaluation(args[1])
+            if not isinstance(lst, list):
+                raise Exception(f"map second argument must be a list, got: {type(lst)}")
+            return [self.callFunctionByName(fn, [elem]) for elem in lst]
+        
+        elif function_name == "filter":
+            if len(args) != 2:
+                raise Exception("filter requires exactly 2 arguments: filter(func, list)")
+            fn = self.expressionEvaluation(args[0])
+            lst = self.expressionEvaluation(args[1])
+            if not isinstance(lst, list):
+                raise Exception(f"filter second argument must be a list, got: {type(lst)}")
+            return [elem for elem in lst if self.callFunctionByName(fn, [elem])]
+        
+        elif function_name == "fold":
+            if len(args) != 3:
+                raise Exception("fold requires exactly 3 arguments: fold(func, initial, list)")
+            fn = self.expressionEvaluation(args[0])
+            accumulator = self.expressionEvaluation(args[1])
+            lst = self.expressionEvaluation(args[2])
+            if not isinstance(lst, list):
+                raise Exception(f"fold third argument must be a list, got: {type(lst)}")
+            for elem in lst:
+                accumulator = self.callFunctionByName(fn, [accumulator, elem])
+            return accumulator
+        
+        return None

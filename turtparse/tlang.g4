@@ -54,11 +54,17 @@ expression :
 		   | expression additive expression        #addExpr
 		   | functionCall				   	   	   #funcExpr
 		   | lambdaExpr							   #lambdaExpression
+		   | lazyExpr							   #lazyExpression
+		   | rangeExpr							   #rangeExpression
 		   | value                                 #valueExpr
 		   | '(' expression ')'                    #parenExpr
  	   ;
 
 lambdaExpr : 'lambda' (VAR)* '=>' expression ;
+
+lazyExpr : 'lazy' expression ;
+
+rangeExpr : '[' expression '..' expression? ']' ;
 
 multiplicative : MUL | DIV;
 additive : PLUS | MINUS;
