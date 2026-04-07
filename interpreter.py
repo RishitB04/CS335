@@ -208,6 +208,7 @@ class ConcreteInterpreter(Interpreter):
             case ChironAST.LambdaExpr(): return self.handleLambdaExpr(expr)
             case ChironAST.LazyExpr(): return self.handleLazyExpr(expr)
             case ChironAST.RangeExpr(): return self.handleRangeExpr(expr)
+            case ChironAST.MatchExpr(): return self.handleMatchExpr(expr)
             case _ : raise Exception(f"Unknown expression: {type(expr)}, {expr}.")
 
     def conditionEvaluation(self, cond):
@@ -393,6 +394,35 @@ class ConcreteInterpreter(Interpreter):
             return list(range(start, end + 1))
         else:
             return InfiniteRange(start)
+    
+    # -- Pattern Matching --
+
+    def handleMatchExpr(self, expr):
+        """
+        Pattern matching: match :x with | 0 => expr1 | :y => expr2 | _ => expr3
+        Evaluates subject, then tries each case in order.
+        - Numeric pattern (Num): exact value match
+        - Variable pattern (Var): binds the value to the variable, always matches
+        - Wildcard pattern (_): always matches (default case)
+        """
+        subject_val = self.forceValue(self.expressionEvaluation(expr.subject))
+        
+        for pattern, result_expr in expr.cases:
+            if isinstance(pattern, ChironAST.NameVal) and pattern.val == "_":
+                # Wildcard: always matches
+                return self.expressionEvaluation(result_expr)
+            elif isinstance(pattern, ChironAST.Num):
+                # Numeric literal: exact value match
+                if subject_val == pattern.val:
+                    return self.expressionEvaluation(result_expr)
+            elif isinstance(pattern, ChironAST.Var):
+                # Variable pattern: bind the matched value and evaluate
+                self.stack.append({pattern.varname: subject_val})
+                result = self.expressionEvaluation(result_expr)
+                self.stack.pop()
+                return result
+        
+        raise Exception(f"Non-exhaustive pattern match for value: {subject_val}")
     
     def callFunctionByName(self, func_name, arg_values):
         """Helper: call a function by name with already-evaluated argument values."""

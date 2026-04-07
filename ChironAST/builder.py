@@ -275,3 +275,28 @@ class astGenPass(tlangVisitor):
         start_expr = self.visit(exprs[0])
         end_expr = self.visit(exprs[1]) if len(exprs) > 1 else None
         return ChironAST.RangeExpr(start_expr, end_expr)
+
+    # -- Pattern Matching --
+
+    def visitMatchExpression(self, ctx:tlangParser.MatchExpressionContext):
+        return self.visit(ctx.matchExpr())
+    
+    def visitMatchExpr(self, ctx:tlangParser.MatchExprContext):
+        subject = self.visit(ctx.expression())
+        cases = []
+        for case_ctx in ctx.matchCase():
+            pattern = self.visit(case_ctx.pattern())
+            expr = self.visit(case_ctx.expression())
+            cases.append((pattern, expr))
+        return ChironAST.MatchExpr(subject, cases)
+    
+    def visitMatchCase(self, ctx:tlangParser.MatchCaseContext):
+        return self.visitChildren(ctx)
+    
+    def visitPattern(self, ctx:tlangParser.PatternContext):
+        if ctx.NUM():
+            return ChironAST.Num(ctx.NUM().getText())
+        elif ctx.VAR():
+            return ChironAST.Var(ctx.VAR().getText())
+        else:
+            return ChironAST.NameVal("_")

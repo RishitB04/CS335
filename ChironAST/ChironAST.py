@@ -300,3 +300,15 @@ class RangeExpr(Expression):
         if self.end_expr:
             return f"[{self.start_expr}..{self.end_expr}]"
         return f"[{self.start_expr}..]"
+
+# -- Pattern Matching --
+
+class MatchExpr(Expression):
+    """Pattern matching: match :x with | 0 => expr | 1 => expr | _ => expr"""
+    def __init__(self, subject, cases):
+        self.subject = subject
+        self.cases = cases  # list of (pattern, expression) tuples
+    
+    def __str__(self):
+        cases_str = " ".join(f"| {p} => {e}" for p, e in self.cases)
+        return f"match {self.subject} with {cases_str}"

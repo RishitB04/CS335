@@ -56,6 +56,7 @@ expression :
 		   | lambdaExpr							   #lambdaExpression
 		   | lazyExpr							   #lazyExpression
 		   | rangeExpr							   #rangeExpression
+		   | matchExpr							   #matchExpression
 		   | value                                 #valueExpr
 		   | '(' expression ')'                    #parenExpr
  	   ;
@@ -65,6 +66,10 @@ lambdaExpr : 'lambda' (VAR)* '=>' expression ;
 lazyExpr : 'lazy' expression ;
 
 rangeExpr : '[' expression '..' expression? ']' ;
+
+matchExpr : 'match' expression 'with' matchCase+ ;
+matchCase : '|' pattern '=>' expression ;
+pattern : NUM | VAR | '_' ;
 
 multiplicative : MUL | DIV;
 additive : PLUS | MINUS;
