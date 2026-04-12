@@ -104,6 +104,11 @@ class tlangVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by tlangParser#matchExpression.
+    def visitMatchExpression(self, ctx:tlangParser.MatchExpressionContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by tlangParser#lambdaExpression.
     def visitLambdaExpression(self, ctx:tlangParser.LambdaExpressionContext):
         return self.visitChildren(ctx)
@@ -161,6 +166,21 @@ class tlangVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by tlangParser#rangeExpr.
     def visitRangeExpr(self, ctx:tlangParser.RangeExprContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#matchExpr.
+    def visitMatchExpr(self, ctx:tlangParser.MatchExprContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#matchCase.
+    def visitMatchCase(self, ctx:tlangParser.MatchCaseContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#pattern.
+    def visitPattern(self, ctx:tlangParser.PatternContext):
         return self.visitChildren(ctx)
 
 
