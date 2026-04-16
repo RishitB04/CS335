@@ -312,3 +312,15 @@ class MatchExpr(Expression):
     def __str__(self):
         cases_str = " ".join(f"| {p} => {e}" for p, e in self.cases)
         return f"match {self.subject} with {cases_str}"
+
+# -- Where Clauses --
+
+class WhereExpr(Expression):
+    """Where clause: expression where :x = 10, :y = 20"""
+    def __init__(self, body, bindings):
+        self.body = body
+        self.bindings = bindings  # list of (var_name, expression) tuples
+    
+    def __str__(self):
+        binds = ", ".join(f"{v} = {e}" for v, e in self.bindings)
+        return f"{self.body} where {binds}"

@@ -52,6 +52,7 @@ expression :
              MINUS expression               	   #unaryExpr
            | expression multiplicative expression  #mulExpr
 		   | expression additive expression        #addExpr
+		   | expression 'where' whereBinding (',' whereBinding)*  #whereExpression
 		   | functionCall				   	   	   #funcExpr
 		   | lambdaExpr							   #lambdaExpression
 		   | lazyExpr							   #lazyExpression
@@ -70,6 +71,8 @@ rangeExpr : '[' expression '..' expression? ']' ;
 matchExpr : 'match' expression 'with' matchCase+ ;
 matchCase : '|' pattern '=>' expression ;
 pattern : NUM | VAR | '_' ;
+
+whereBinding : VAR '=' expression ;
 
 multiplicative : MUL | DIV;
 additive : PLUS | MINUS;

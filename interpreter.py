@@ -209,6 +209,7 @@ class ConcreteInterpreter(Interpreter):
             case ChironAST.LazyExpr(): return self.handleLazyExpr(expr)
             case ChironAST.RangeExpr(): return self.handleRangeExpr(expr)
             case ChironAST.MatchExpr(): return self.handleMatchExpr(expr)
+            case ChironAST.WhereExpr(): return self.handleWhereExpr(expr)
             case _ : raise Exception(f"Unknown expression: {type(expr)}, {expr}.")
 
     def conditionEvaluation(self, cond):
@@ -423,6 +424,24 @@ class ConcreteInterpreter(Interpreter):
                 return result
         
         raise Exception(f"Non-exhaustive pattern match for value: {subject_val}")
+    
+    # -- Where Clauses --
+
+    def handleWhereExpr(self, expr):
+        """
+        Where clause: expression where :x = 10, :y = :x * 2
+        Creates a temporary scope, evaluates bindings sequentially
+        (so later bindings can reference earlier ones), evaluates the
+        body expression in that scope, then removes the scope.
+        """
+        local_scope = {}
+        self.stack.append(local_scope)
+        for var_name, bind_expr in expr.bindings:
+            local_scope[var_name] = self.expressionEvaluation(bind_expr)
+        
+        result = self.expressionEvaluation(expr.body)
+        self.stack.pop()
+        return result
     
     def callFunctionByName(self, func_name, arg_values):
         """Helper: call a function by name with already-evaluated argument values."""
