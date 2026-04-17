@@ -114,6 +114,11 @@ class tlangVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by tlangParser#whereExpression.
+    def visitWhereExpression(self, ctx:tlangParser.WhereExpressionContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by tlangParser#unaryExpr.
     def visitUnaryExpr(self, ctx:tlangParser.UnaryExprContext):
         return self.visitChildren(ctx)
@@ -181,6 +186,11 @@ class tlangVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by tlangParser#pattern.
     def visitPattern(self, ctx:tlangParser.PatternContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#whereBinding.
+    def visitWhereBinding(self, ctx:tlangParser.WhereBindingContext):
         return self.visitChildren(ctx)
 
 

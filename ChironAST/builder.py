@@ -300,3 +300,17 @@ class astGenPass(tlangVisitor):
             return ChironAST.Var(ctx.VAR().getText())
         else:
             return ChironAST.NameVal("_")
+
+    # -- Where Clauses --
+
+    def visitWhereExpression(self, ctx:tlangParser.WhereExpressionContext):
+        body = self.visit(ctx.expression())
+        bindings = []
+        for bind_ctx in ctx.whereBinding():
+            var_name = bind_ctx.VAR().getText()
+            expr = self.visit(bind_ctx.expression())
+            bindings.append((var_name, expr))
+        return ChironAST.WhereExpr(body, bindings)
+    
+    def visitWhereBinding(self, ctx:tlangParser.WhereBindingContext):
+        return self.visitChildren(ctx)
