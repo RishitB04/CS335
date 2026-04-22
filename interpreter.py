@@ -1,4 +1,3 @@
-
 from ChironAST import ChironAST
 from ChironHooks import Chironhooks
 import turtle
@@ -104,7 +103,6 @@ class Interpreter:
         pass
 
 
-# TODO: move to a different file
 class ConcreteInterpreter(Interpreter):
     # Ref: https://realpython.com/beginners-guide-python-turtle
     cond_eval = None # used as a temporary variable within the embedded program interpreter
@@ -144,7 +142,6 @@ class ConcreteInterpreter(Interpreter):
 
         ntgt = self.executeInstruction(stmt, tgt)
 
-        # TODO: handle statement
         self.pc += ntgt
 
         if self.pc >= len(self.ir):
@@ -203,6 +200,8 @@ class ConcreteInterpreter(Interpreter):
                 rval = self.forceValue(self.expressionEvaluation(expr.rexpr))
                 if isinstance(lval, str) or isinstance(rval, str):
                     raise Exception(f"Division operator cannot be applied to str values: {lval}, {rval}.")
+                if rval == 0:
+                    raise Exception("ChironLang Error: Division by zero")
                 return lval / rval
             case ChironAST.FunctionExpr(): return self.executeFunction(expr.callname, expr.args)
             case ChironAST.LambdaExpr(): return self.handleLambdaExpr(expr)
@@ -235,14 +234,12 @@ class ConcreteInterpreter(Interpreter):
         if len(self.call_stack) > 100:
             raise Exception("Maximum call stack depth exceeded.")
         
-        if isinstance(callname, ChironAST.Var):
-            function_name = self.variableCheck(callname.varname)
-        elif isinstance(callname, ChironAST.NameVal):
-            function_name = callname.val
-        else: raise Exception(f"Invalid function name: {callname}.")
+        function_name = self.forceValue(self.expressionEvaluation(callname))
+        
+        if not isinstance(function_name, str):
+            raise Exception(f"Invalid callable: '{callname}' evaluated to '{function_name}'")
 
         if function_name not in self.function_def:
-            # Check built-in functions first
             builtin_result = self.tryBuiltinFunction(function_name, args)
             if builtin_result is not None:
                 return builtin_result
@@ -250,20 +247,24 @@ class ConcreteInterpreter(Interpreter):
         
         func_entry = self.function_def[function_name]
         
-        # Check if this is a lambda function
         if isinstance(func_entry, dict) and func_entry.get('type') == 'lambda':
             return self.executeLambda(func_entry, args)
         
-        arguments , start_pc = func_entry
+        # Unpack the standard function definition (now includes lexical closure)
+        arguments, start_pc, closure = func_entry
         if len(arguments) != len(args):
             raise Exception(f"Argument count mismatch for function {function_name}.")
         
+        # Evaluate arguments in the current scope BEFORE switching environments
         eval_args = [self.expressionEvaluation(arg) for arg in args]
 
         local_scope = dict(zip(arguments, eval_args))
-        self.stack.append(local_scope)
+        
+        # Save the current execution environment and switch to the lexical environment
+        old_stack = self.stack
+        self.stack = list(closure) + [local_scope]
+        
         self.call_stack.append(self.pc)
-
         self.pc = start_pc
         ret_value = None
 
@@ -275,13 +276,24 @@ class ConcreteInterpreter(Interpreter):
             ntgt = self.executeInstruction(curr_stmt, curr_tgt)
             self.pc += ntgt
         
-        self.stack.pop()
+        # Restore the previous dynamic execution environment
         self.pc = self.call_stack.pop()
+        self.stack = old_stack
         return ret_value
 
     def handleAssignment(self, stmt):
         print("  Assignment Statement")
-        self.stack[-1][stmt.lvar.varname] = self.expressionEvaluation(stmt.rexpr)
+        varname = stmt.lvar.varname
+        val = self.expressionEvaluation(stmt.rexpr)
+        
+        # Lexical assignment: traverse backwards to update existing variable in its defining scope
+        for scope in reversed(self.stack):
+            if varname in scope:
+                scope[varname] = val
+                return 1
+                
+        # If not found in any outer scope, create a new variable in the current local scope
+        self.stack[-1][varname] = val
         return 1
 
     def handleCondition(self, stmt, tgt):
@@ -328,22 +340,23 @@ class ConcreteInterpreter(Interpreter):
     
     def handleFunctionDefCommand(self, stmt, tgt):
         print(" FunctionDefCommand")
-        self.function_def[stmt.funcname] = (stmt.params, self.pc + 1)
+        # Capture the environment by copying references to current dicts
+        lexical_env = list(self.stack)
+        self.function_def[stmt.funcname] = (stmt.params, self.pc + 1, lexical_env)
         return tgt
 
     def handleLambdaExpr(self, expr):
         self.lambda_counter += 1
         lambda_name = f"__lambda_{self.lambda_counter}"
         
-        captured_scope = {}
-        for scope in self.stack:
-            captured_scope.update(scope)
+        # Capture the environment by reference, NOT by flattening into a new dict
+        lexical_env = list(self.stack)
         
         self.function_def[lambda_name] = {
             'type': 'lambda',
             'params': expr.params,
             'body': expr.body_expr,
-            'closure': captured_scope
+            'closure': lexical_env
         }
         
         return lambda_name
@@ -356,26 +369,28 @@ class ConcreteInterpreter(Interpreter):
         if len(params) != len(args):
             raise Exception(f"Lambda argument count mismatch: expected {len(params)}, got {len(args)}.")
         
+        # Evaluate arguments in the caller's scope
         eval_args = [self.expressionEvaluation(arg) for arg in args]
+        local_scope = dict(zip(params, eval_args))
         
-        local_scope = dict(closure)
-        local_scope.update(dict(zip(params, eval_args)))
+        # Context switch: swap dynamic stack for lambda's lexical closure
+        old_stack = self.stack
+        self.stack = list(closure) + [local_scope]
         
-        self.stack.append(local_scope)
         ret_value = self.expressionEvaluation(body)
-        self.stack.pop()
+        
+        # Restore environment
+        self.stack = old_stack
         
         return ret_value
 
     # -- Lazy Evaluation Methods --
 
     def forceValue(self, val):
-        """Force a thunk to evaluate. If already a concrete value, return as-is.
-        Called transparently whenever a concrete value is needed."""
         if isinstance(val, Thunk):
             if not val.evaluated:
                 old_stack = self.stack
-                self.stack = val.scope_snapshot + [{}]
+                self.stack = list(val.scope_snapshot) + [{}]
                 val.cached_value = self.forceValue(self.expressionEvaluation(val.expr))
                 self.stack = old_stack
                 val.evaluated = True
@@ -383,12 +398,10 @@ class ConcreteInterpreter(Interpreter):
         return val
     
     def handleLazyExpr(self, expr):
-        """Create a thunk — a deferred computation that captures the current scope."""
-        scope_snapshot = [dict(scope) for scope in self.stack]
+        scope_snapshot = list(self.stack)
         return Thunk(expr.expr, scope_snapshot)
     
     def handleRangeExpr(self, expr):
-        """Handle range expressions: [1..10] for finite, [1..] for infinite."""
         start = int(self.forceValue(self.expressionEvaluation(expr.start_expr)))
         if expr.end_expr is not None:
             end = int(self.forceValue(self.expressionEvaluation(expr.end_expr)))
@@ -399,25 +412,15 @@ class ConcreteInterpreter(Interpreter):
     # -- Pattern Matching --
 
     def handleMatchExpr(self, expr):
-        """
-        Pattern matching: match :x with | 0 => expr1 | :y => expr2 | _ => expr3
-        Evaluates subject, then tries each case in order.
-        - Numeric pattern (Num): exact value match
-        - Variable pattern (Var): binds the value to the variable, always matches
-        - Wildcard pattern (_): always matches (default case)
-        """
         subject_val = self.forceValue(self.expressionEvaluation(expr.subject))
         
         for pattern, result_expr in expr.cases:
             if isinstance(pattern, ChironAST.NameVal) and pattern.val == "_":
-                # Wildcard: always matches
                 return self.expressionEvaluation(result_expr)
             elif isinstance(pattern, ChironAST.Num):
-                # Numeric literal: exact value match
                 if subject_val == pattern.val:
                     return self.expressionEvaluation(result_expr)
             elif isinstance(pattern, ChironAST.Var):
-                # Variable pattern: bind the matched value and evaluate
                 self.stack.append({pattern.varname: subject_val})
                 result = self.expressionEvaluation(result_expr)
                 self.stack.pop()
@@ -428,12 +431,6 @@ class ConcreteInterpreter(Interpreter):
     # -- Where Clauses --
 
     def handleWhereExpr(self, expr):
-        """
-        Where clause: expression where :x = 10, :y = :x * 2
-        Creates a temporary scope, evaluates bindings sequentially
-        (so later bindings can reference earlier ones), evaluates the
-        body expression in that scope, then removes the scope.
-        """
         local_scope = {}
         self.stack.append(local_scope)
         for var_name, bind_expr in expr.bindings:
@@ -444,7 +441,6 @@ class ConcreteInterpreter(Interpreter):
         return result
     
     def callFunctionByName(self, func_name, arg_values):
-        """Helper: call a function by name with already-evaluated argument values."""
         temp_args = []
         temp_scope = {}
         for i, val in enumerate(arg_values):
@@ -458,8 +454,6 @@ class ConcreteInterpreter(Interpreter):
         return result
 
     def tryBuiltinFunction(self, function_name, args):
-        """Handle built-in functions. Returns None if not a built-in."""
-        
         if function_name == "force":
             if len(args) != 1:
                 raise Exception("force requires exactly 1 argument")
@@ -470,7 +464,7 @@ class ConcreteInterpreter(Interpreter):
             if len(args) != 2:
                 raise Exception("take requires exactly 2 arguments: take(n, list)")
             n = int(self.forceValue(self.expressionEvaluation(args[0])))
-            lst = self.expressionEvaluation(args[1])
+            lst = self.forceValue(self.expressionEvaluation(args[1]))
             if isinstance(lst, InfiniteRange):
                 return lst.take_n(n)
             if isinstance(lst, list):
@@ -480,7 +474,7 @@ class ConcreteInterpreter(Interpreter):
         elif function_name == "head":
             if len(args) != 1:
                 raise Exception("head requires exactly 1 argument")
-            lst = self.expressionEvaluation(args[0])
+            lst = self.forceValue(self.expressionEvaluation(args[0]))
             if isinstance(lst, InfiniteRange):
                 return lst.get(0)
             if not isinstance(lst, list) or len(lst) == 0:
@@ -490,7 +484,7 @@ class ConcreteInterpreter(Interpreter):
         elif function_name == "tail":
             if len(args) != 1:
                 raise Exception("tail requires exactly 1 argument")
-            lst = self.expressionEvaluation(args[0])
+            lst = self.forceValue(self.expressionEvaluation(args[0]))
             if isinstance(lst, InfiniteRange):
                 return InfiniteRange(lst.start + 1)
             if not isinstance(lst, list) or len(lst) == 0:
@@ -500,7 +494,7 @@ class ConcreteInterpreter(Interpreter):
         elif function_name == "length":
             if len(args) != 1:
                 raise Exception("length requires exactly 1 argument")
-            lst = self.expressionEvaluation(args[0])
+            lst = self.forceValue(self.expressionEvaluation(args[0]))
             if isinstance(lst, InfiniteRange):
                 raise Exception("Cannot take length of infinite range")
             if not isinstance(lst, list):
@@ -510,7 +504,7 @@ class ConcreteInterpreter(Interpreter):
         elif function_name == "nth":
             if len(args) != 2:
                 raise Exception("nth requires exactly 2 arguments: nth(list, index)")
-            lst = self.expressionEvaluation(args[0])
+            lst = self.forceValue(self.expressionEvaluation(args[0]))
             idx = int(self.forceValue(self.expressionEvaluation(args[1])))
             if isinstance(lst, InfiniteRange):
                 return lst.get(idx)
@@ -524,7 +518,7 @@ class ConcreteInterpreter(Interpreter):
             if len(args) != 2:
                 raise Exception("cons requires exactly 2 arguments: cons(elem, list)")
             elem = self.expressionEvaluation(args[0])
-            lst = self.expressionEvaluation(args[1])
+            lst = self.forceValue(self.expressionEvaluation(args[1]))
             if not isinstance(lst, list):
                 raise Exception("cons second argument must be a list")
             return [elem] + lst
@@ -532,9 +526,9 @@ class ConcreteInterpreter(Interpreter):
         elif function_name == "zipWith":
             if len(args) != 3:
                 raise Exception("zipWith requires exactly 3 arguments: zipWith(func, list1, list2)")
-            func_name_val = self.expressionEvaluation(args[0])
-            lst1 = self.expressionEvaluation(args[1])
-            lst2 = self.expressionEvaluation(args[2])
+            func_name_val = self.forceValue(self.expressionEvaluation(args[0]))
+            lst1 = self.forceValue(self.expressionEvaluation(args[1]))
+            lst2 = self.forceValue(self.expressionEvaluation(args[2]))
             if isinstance(lst1, InfiniteRange) and isinstance(lst2, InfiniteRange):
                 raise Exception("zipWith cannot operate on two infinite ranges. Use take() on at least one.")
             if isinstance(lst1, InfiniteRange):
@@ -549,8 +543,8 @@ class ConcreteInterpreter(Interpreter):
         elif function_name == "map":
             if len(args) != 2:
                 raise Exception("map requires exactly 2 arguments: map(func, list)")
-            fn = self.expressionEvaluation(args[0])
-            lst = self.expressionEvaluation(args[1])
+            fn = self.forceValue(self.expressionEvaluation(args[0]))
+            lst = self.forceValue(self.expressionEvaluation(args[1]))
             if not isinstance(lst, list):
                 raise Exception(f"map second argument must be a list, got: {type(lst)}")
             return [self.callFunctionByName(fn, [elem]) for elem in lst]
@@ -558,8 +552,8 @@ class ConcreteInterpreter(Interpreter):
         elif function_name == "filter":
             if len(args) != 2:
                 raise Exception("filter requires exactly 2 arguments: filter(func, list)")
-            fn = self.expressionEvaluation(args[0])
-            lst = self.expressionEvaluation(args[1])
+            fn = self.forceValue(self.expressionEvaluation(args[0]))
+            lst = self.forceValue(self.expressionEvaluation(args[1]))
             if not isinstance(lst, list):
                 raise Exception(f"filter second argument must be a list, got: {type(lst)}")
             return [elem for elem in lst if self.callFunctionByName(fn, [elem])]
@@ -567,9 +561,9 @@ class ConcreteInterpreter(Interpreter):
         elif function_name == "fold":
             if len(args) != 3:
                 raise Exception("fold requires exactly 3 arguments: fold(func, initial, list)")
-            fn = self.expressionEvaluation(args[0])
+            fn = self.forceValue(self.expressionEvaluation(args[0]))
             accumulator = self.expressionEvaluation(args[1])
-            lst = self.expressionEvaluation(args[2])
+            lst = self.forceValue(self.expressionEvaluation(args[2]))
             if not isinstance(lst, list):
                 raise Exception(f"fold third argument must be a list, got: {type(lst)}")
             for elem in lst:

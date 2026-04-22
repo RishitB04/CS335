@@ -22,9 +22,8 @@ instruction : assignment
 		| returnInstruction
 	    ;
 
-call : NAME | VAR ;
 functionDeclaration : 'to' NAME (VAR)* strict_ilist 'end';
-functionCall : call '(' argumentList? ')' ;
+functionCall : expression '(' argumentList? ')' ;
 argumentList : expression (',' expression)* ;
 returnInstruction : 'return' expression? ;
 
@@ -49,17 +48,18 @@ penCommand : 'penup' | 'pendown' ;
 pauseCommand : 'pause' ;
 
 expression : 
-             MINUS expression               	   #unaryExpr
-           | expression multiplicative expression  #mulExpr
-		   | expression additive expression        #addExpr
-		   | expression 'where' whereBinding (',' whereBinding)*  #whereExpression
-		   | functionCall				   	   	   #funcExpr
-		   | lambdaExpr							   #lambdaExpression
-		   | lazyExpr							   #lazyExpression
-		   | rangeExpr							   #rangeExpression
-		   | matchExpr							   #matchExpression
-		   | value                                 #valueExpr
-		   | '(' expression ')'                    #parenExpr
+		    expression '(' argumentList? ')'	   				  	#funcExpr
+           |  MINUS expression               	   				  	#unaryExpr
+           | expression multiplicative expression  				  	#mulExpr
+		   | expression additive expression        				  	#addExpr
+		   | expression '|>' expression                           	#pipeExpr 
+		   | expression 'where' whereBinding (',' whereBinding)*  	#whereExpression
+		   | lambdaExpr							   				  	#lambdaExpression
+		   | lazyExpr							   					#lazyExpression
+		   | rangeExpr							   					#rangeExpression
+		   | matchExpr							   					#matchExpression
+		   | value                                 					#valueExpr
+		   | '(' expression ')'                   	 				#parenExpr
  	   ;
 
 lambdaExpr : 'lambda' (VAR)* '=>' expression ;

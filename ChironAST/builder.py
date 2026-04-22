@@ -229,27 +229,20 @@ class astGenPass(tlangVisitor):
         rexpr = self.visit(ctx.expression()) if ctx.expression() else None
         return [(ChironAST.ReturnCommand(rexpr), 1)]
     
-    def buildFunctionCall(self, ctx:tlangParser.FunctionCallContext):
-        if ctx.call().NAME():
-            callname = ChironAST.NameVal(ctx.call().NAME().getText())
-        elif ctx.call().VAR():
-            callname = ChironAST.Var(ctx.call().VAR().getText())
-        else:
-            raise Exception("Invalid function call")
-        
+    def visitFunctionCall(self, ctx:tlangParser.FunctionCallContext):
+        callname = self.visit(ctx.expression())
         args = []
         if ctx.argumentList():
             for arg in ctx.argumentList().expression():
                 args.append(self.visit(arg))
-        
-        return callname, args
-    
-    def visitFunctionCall(self, ctx:tlangParser.FunctionCallContext):
-        callname, args = self.buildFunctionCall(ctx)
         return [(ChironAST.FunctionCallCommand(callname, args), 1)]
     
     def visitFuncExpr(self, ctx:tlangParser.FuncExprContext):
-        callname, args = self.buildFunctionCall(ctx.functionCall())
+        callname = self.visit(ctx.expression())
+        args = []
+        if ctx.argumentList():
+            for arg in ctx.argumentList().expression():
+                args.append(self.visit(arg))
         return ChironAST.FunctionExpr(callname, args)
 
     def visitLambdaExpression(self, ctx:tlangParser.LambdaExpressionContext):
@@ -314,3 +307,16 @@ class astGenPass(tlangVisitor):
     
     def visitWhereBinding(self, ctx:tlangParser.WhereBindingContext):
         return self.visitChildren(ctx)
+
+    def visitPipeExpr(self, ctx:tlangParser.PipeExprContext):
+        left_expr = self.visit(ctx.expression(0))
+        
+        right_ast = self.visit(ctx.expression(1))
+
+        if isinstance(right_ast, ChironAST.FunctionExpr):
+            new_args = right_ast.args + [left_expr]
+            return ChironAST.FunctionExpr(right_ast.callname, new_args)
+        elif isinstance(right_ast, (ChironAST.Var, ChironAST.NameVal)):
+            return ChironAST.FunctionExpr(right_ast, [left_expr])
+        else:
+            raise Exception(f"Syntax Error: Right side of '|>' must be a function call or function name instead of {type(right_ast).__name__}.")

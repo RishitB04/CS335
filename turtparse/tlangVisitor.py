@@ -1,4 +1,4 @@
-# Generated from turtparse/tlang.g4 by ANTLR 4.13.2
+# Generated from tlang.g4 by ANTLR 4.13.2
 from antlr4 import *
 if "." in __name__:
     from .tlangParser import tlangParser
@@ -26,11 +26,6 @@ class tlangVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by tlangParser#instruction.
     def visitInstruction(self, ctx:tlangParser.InstructionContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by tlangParser#call.
-    def visitCall(self, ctx:tlangParser.CallContext):
         return self.visitChildren(ctx)
 
 
@@ -114,6 +109,11 @@ class tlangVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by tlangParser#pipeExpr.
+    def visitPipeExpr(self, ctx:tlangParser.PipeExprContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by tlangParser#whereExpression.
     def visitWhereExpression(self, ctx:tlangParser.WhereExpressionContext):
         return self.visitChildren(ctx)
@@ -124,13 +124,13 @@ class tlangVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by tlangParser#funcExpr.
-    def visitFuncExpr(self, ctx:tlangParser.FuncExprContext):
+    # Visit a parse tree produced by tlangParser#valueExpr.
+    def visitValueExpr(self, ctx:tlangParser.ValueExprContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by tlangParser#valueExpr.
-    def visitValueExpr(self, ctx:tlangParser.ValueExprContext):
+    # Visit a parse tree produced by tlangParser#funcExpr.
+    def visitFuncExpr(self, ctx:tlangParser.FuncExprContext):
         return self.visitChildren(ctx)
 
 
