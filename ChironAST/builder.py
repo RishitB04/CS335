@@ -241,14 +241,19 @@ class astGenPass(tlangVisitor):
         rexpr = self.visit(ctx.expression()) if ctx.expression() else None
         return [(ChironAST.ReturnCommand(rexpr), 1)]
     
-    def buildFunctionCall(self, ctx:tlangParser.FunctionCallContext):
-        callname = ChironAST.NameVal(ctx.NAME().getText())
-    
+    def buildFunctionCall(self, ctx):
+        if ctx.NAME():
+            callname = ChironAST.NameVal(ctx.NAME().getText())
+        elif ctx.VAR():
+            callname = ChironAST.Var(ctx.VAR().getText())
+        else:
+            raise Exception("Invalid function call")
+
         args = []
         if ctx.argumentList():
           for arg in ctx.argumentList().expression():
             args.append(self.visit(arg))
-    
+
         return callname, args
     
     

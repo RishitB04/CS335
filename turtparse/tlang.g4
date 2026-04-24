@@ -26,7 +26,8 @@ instruction : assignment
 	    ;
 
 functionDeclaration : 'to' NAME (VAR)* strict_ilist 'end';
-functionCall : NAME '(' argumentList? ')' ;
+functionCall
+    : (NAME | VAR) '(' argumentList? ')' ;
 argumentList : expression (',' expression)* ;
 returnInstruction : 'return' expression? ;
 
