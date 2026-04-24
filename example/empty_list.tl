@@ -1,0 +1,2 @@
+:a = {}
+:len = length(:a)

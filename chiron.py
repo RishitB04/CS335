@@ -206,15 +206,27 @@ if __name__ == "__main__":
     # this object is passed around everywhere.
     irHandler = IRHandler(ir)
 
+
     # generate IR
     if args.bin:
-        ir = irHandler.loadIR(args.progfl)
+      ir = irHandler.loadIR(args.progfl)
     else:
-        parseTree = getParseTree(args.progfl)
-        astgen = astGenPass()
-        ir = astgen.visitStart(parseTree)
+      parseTree = getParseTree(args.progfl)
+      astgen = astGenPass()
+
+      print("\n[DEBUG] Building AST → IR...")
+      ir = astgen.visitStart(parseTree)
+
+      # 🔥 DEBUG: print IR
+      print("[DEBUG] IR GENERATED:", ir)
+
+      # ❌ FAIL FAST if IR is None
+      if ir is None:
+        raise Exception("IR generation failed! Builder returned None.")
 
     # Set the IR of the program.
+    if ir is None:
+      raise Exception("IR is None — stopping execution.")
     irHandler.setIR(ir)
 
     # generate control_flow_graph from IR statements.

@@ -11,14 +11,18 @@ class AST(object):
 class Instruction(AST):
     pass
 
+class ListLiteral:
+    def __init__(self, elements):
+        self.elements = elements
+    
 
 class AssignmentCommand(Instruction):
-    def __init__(self, leftvars, rexpr):
-        self.lvars = leftvars
+    def __init__(self, leftvar, rexpr):
+        self.lvar = leftvar
         self.rexpr = rexpr
 
     def __str__(self):
-        return ", ".join(str(v) for v in self.lvars) + " = " + self.rexpr.__str__()
+        return self.lvar.__str__() + " = " + self.rexpr.__str__()
 
 
 class ConditionCommand(Instruction):
@@ -301,12 +305,6 @@ class RangeExpr(Expression):
             return f"[{self.start_expr}..{self.end_expr}]"
         return f"[{self.start_expr}..]"
 
-class ListExpr(Expression):
-    def __init__(self, elements):
-        self.elements = elements
-    def __str__(self):
-        return "[" + ", ".join(str(e) for e in self.elements) + "]"
-
 # -- Pattern Matching --
 
 class MatchExpr(Expression):
@@ -330,47 +328,3 @@ class WhereExpr(Expression):
     def __str__(self):
         binds = ", ".join(f"{v} = {e}" for v, e in self.bindings)
         return f"{self.body} where {binds}"
-
-class TypeDefCommand(Instruction):
-    def __init__(self, typename, variants):
-        self.typename = typename
-        self.variants = variants 
-
-    def __str__(self):
-        return f"type {self.typename} = " + " | ".join(
-            f"{k}({', '.join(v)})" if v else k for k, v in self.variants.items()
-        )
-
-class ADTValue(Value):
-    def __init__(self, label, values):
-        self.label = label
-        self.values = values 
-
-    def __str__(self):
-        if not self.values:
-            return self.label
-        return f"{self.label}({', '.join(str(v) for v in self.values)})"
-    
-    def __eq__(self, other):
-        if isinstance(other, ADTValue):
-            return self.label == other.label and self.values == other.values
-        return False
-    
-    __repr__ = __str__
-    
-class ADTPattern(AST):
-    """Represents an ADT shape in a match case: | Some(:x) => ..."""
-    def __init__(self, label, variables):
-        self.label = label
-        self.variables = variables  # list of variable names (e.g., [':x'])
-    
-    def __str__(self):
-        if not self.variables:
-            return self.label
-        return f"{self.label}({', '.join(self.variables)})"
-    
-class ListPattern(AST):
-    def __init__(self, patterns):
-        self.patterns = patterns 
-    def __str__(self):
-        return "[" + ", ".join(str(p) for p in self.patterns) + "]"

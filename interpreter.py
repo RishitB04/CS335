@@ -2,45 +2,47 @@ from ChironAST import ChironAST
 from ChironHooks import Chironhooks
 import turtle
 
-Release="Chiron v5.3"
+Release = "Chiron v5.3"
+
+# -- Lazy Evaluation Support --
 
 
 class Thunk:
     """A deferred computation. Stores the expression and the scope snapshot.
     Evaluated only when forceValue() is called. Result is cached (memoized)."""
+
     def __init__(self, expr, scope_snapshot):
         self.expr = expr
         self.scope_snapshot = scope_snapshot
         self.evaluated = False
         self.cached_value = None
-    
+
     def __str__(self):
         if self.evaluated:
             return f"Thunk(cached={self.cached_value})"
         return f"Thunk(unevaluated={self.expr})"
-    
-    __repr__ = __str__
+
 
 class InfiniteRange:
     """Represents a lazy infinite range [start..]. Elements are generated on demand."""
+
     def __init__(self, start):
         self.start = start
         self.generated = []
-    
+
     def get(self, index):
         while len(self.generated) <= index:
             self.generated.append(self.start + len(self.generated))
         return self.generated[index]
-    
+
     def take_n(self, n):
         return [self.get(i) for i in range(n)]
-    
+
     def __str__(self):
         if self.generated:
             return f"[{self.start}.. (generated {len(self.generated)} elements)]"
         return f"[{self.start}..]"
-    
-    __repr__ = __str__
+
 
 class Interpreter:
     # Turtle program should not contain variable with names "ir", "pc", "t_screen"
@@ -60,7 +62,7 @@ class Interpreter:
         self.trtl.fillcolor("green")
         self.trtl.begin_fill()
         self.trtl.pensize(4)
-        self.trtl.speed(1) # TODO: Make it user friendly
+        self.trtl.speed(1)  # TODO: Make it user friendly
 
         if params is not None:
             self.args = params
@@ -72,33 +74,37 @@ class Interpreter:
         turtle.hideturtle()
 
     def handleAssignment(self, stmt):
-        raise NotImplementedError('Assignments are not handled!')
+        raise NotImplementedError("Assignments are not handled!")
 
     def handleCondition(self, stmt, tgt):
-        raise NotImplementedError('Conditions are not handled!')
+        raise NotImplementedError("Conditions are not handled!")
 
     def handleMove(self, stmt):
-        raise NotImplementedError('Moves are not handled!')
+        raise NotImplementedError("Moves are not handled!")
 
     def handlePen(self, stmt):
-        raise NotImplementedError('Pens are not handled!')
+        raise NotImplementedError("Pens are not handled!")
 
     def handleGotoCommand(self, stmt):
-        raise NotImplementedError('Gotos are not handled!')
+        raise NotImplementedError("Gotos are not handled!")
 
-    def handleNoOpCommand(self,  tgt):
-        raise NotImplementedError('No-Ops are not handled!')
+    def handleNoOpCommand(self, tgt):
+        raise NotImplementedError("No-Ops are not handled!")
 
     def handlePauseCommand(self):
-        raise NotImplementedError('No-Ops are not handled!')
+        raise NotImplementedError("No-Ops are not handled!")
 
     def sanityCheck(self, irInstr):
         stmt, tgt = irInstr
         # if not a condition command, rel. jump can't be anything but 1
-        if not (isinstance(stmt, ChironAST.ConditionCommand) or isinstance(stmt, ChironAST.FunctionDefCommand) or isinstance(stmt, ChironAST.NoOpCommand)):
+        if not (
+            isinstance(stmt, ChironAST.ConditionCommand)
+            or isinstance(stmt, ChironAST.FunctionDefCommand)
+            or isinstance(stmt, ChironAST.NoOpCommand)
+        ):
             if tgt != 1:
                 raise ValueError("Improper relative jump ", str(stmt), tgt)
-    
+
     def interpret(self):
         pass
 
@@ -106,18 +112,20 @@ class Interpreter:
         pass
 
 
+# TODO: move to a different file
 class ConcreteInterpreter(Interpreter):
     # Ref: https://realpython.com/beginners-guide-python-turtle
-    cond_eval = None # used as a temporary variable within the embedded program interpreter
+    cond_eval = (
+        None  # used as a temporary variable within the embedded program interpreter
+    )
     prg = None
 
     def __init__(self, irHandler, params):
         super().__init__(irHandler, params)
-        self.stack=[{}];
-        self.call_stack=[];
-        self.function_def={};
-        self.lambda_counter = 0;
-        self.adt = {};
+        self.stack = [{}]
+        self.call_stack = []
+        self.function_def = {}
+        self.lambda_counter = 0
         # Hooks Object:
         if self.args is not None and self.args.hooks:
             self.chironhook = Chironhooks.ConcreteChironHooks()
@@ -125,18 +133,28 @@ class ConcreteInterpreter(Interpreter):
 
     def executeInstruction(self, stmt, tgt):
         match stmt:
-            case ChironAST.AssignmentCommand(): return self.handleAssignment(stmt)
-            case ChironAST.ConditionCommand(): return self.handleCondition(stmt, tgt)
-            case ChironAST.MoveCommand(): return self.handleMove(stmt)
-            case ChironAST.PenCommand(): return self.handlePen(stmt)
-            case ChironAST.GotoCommand(): return self.handleGotoCommand(stmt)
-            case ChironAST.NoOpCommand(): return self.handleNoOpCommand(tgt)
-            case ChironAST.PauseCommand(): return self.handlePauseCommand()
-            case ChironAST.FunctionCallCommand(): return self.handleFunctionCallCommand(stmt)
-            case ChironAST.FunctionDefCommand(): return self.handleFunctionDefCommand(stmt,tgt)
-            case ChironAST.TypeDefCommand(): return self.handleTypeDefCommand(stmt, tgt)
-            case ChironAST.ReturnCommand(): return tgt
-            case _ : raise Exception(f"Unknown instruction: {type(stmt)}, {stmt}.")
+            case ChironAST.AssignmentCommand():
+                return self.handleAssignment(stmt)
+            case ChironAST.ConditionCommand():
+                return self.handleCondition(stmt, tgt)
+            case ChironAST.MoveCommand():
+                return self.handleMove(stmt)
+            case ChironAST.PenCommand():
+                return self.handlePen(stmt)
+            case ChironAST.GotoCommand():
+                return self.handleGotoCommand(stmt)
+            case ChironAST.NoOpCommand():
+                return self.handleNoOpCommand(tgt)
+            case ChironAST.PauseCommand():
+                return self.handlePauseCommand()
+            case ChironAST.FunctionCallCommand():
+                return self.handleFunctionCallCommand(stmt)
+            case ChironAST.FunctionDefCommand():
+                return self.handleFunctionDefCommand(stmt, tgt)
+            case ChironAST.ReturnCommand():
+                return tgt
+            case _:
+                raise Exception(f"Unknown instruction: {type(stmt)}, {stmt}.")
 
     def interpret(self):
         print("Program counter : ", self.pc)
@@ -147,6 +165,7 @@ class ConcreteInterpreter(Interpreter):
 
         ntgt = self.executeInstruction(stmt, tgt)
 
+        # TODO: handle statement
         self.pc += ntgt
 
         if self.pc >= len(self.ir):
@@ -157,231 +176,205 @@ class ConcreteInterpreter(Interpreter):
             return True
         else:
             return False
-    
+
     def initProgramContext(self, params):
+        # This is the starting of the interpreter at setup stage.
         if self.args is not None and self.args.hooks:
             self.chironhook.ChironStartHook(self)
         self.trtl.write("Start", font=("Arial", 15, "bold"))
-        for key,val in params.items():
-            self.stack[0][key]=val
-    
+        for key, val in params.items():
+            self.stack[0][key] = val
+
     def variableCheck(self, varname):
         for scope in reversed(self.stack):
             if varname in scope:
                 return scope[varname]
         raise Exception(varname + " not defined")
-    
+
     def expressionEvaluation(self, expr):
         match expr:
-            case ChironAST.Num(): return expr.val
-            case ChironAST.Var(): return self.variableCheck(expr.varname)
-            case ChironAST.NameVal(): 
-                if expr.val in self.adt and len(self.adt[expr.val]) == 0:
-                    return ChironAST.ADTValue(expr.val, [])
+            case ChironAST.Num():
+                return expr.val
+            case ChironAST.Var():
+                return self.variableCheck(expr.varname)
+            case ChironAST.NameVal():
                 return expr.val
             case ChironAST.UMinus():
                 val = self.forceValue(self.expressionEvaluation(expr.expr))
                 if isinstance(val, str):
-                    raise Exception(f"Unary minus cannot be applied to str value: {val}.")
+                    raise Exception(
+                        f"Unary minus cannot be applied to str value: {val}."
+                    )
                 return -val
             case ChironAST.Sum():
                 lval = self.forceValue(self.expressionEvaluation(expr.lexpr))
                 rval = self.forceValue(self.expressionEvaluation(expr.rexpr))
                 if isinstance(lval, str) or isinstance(rval, str):
-                    raise Exception(f"Sum operator cannot be applied to str values: {lval}, {rval}.")
+                    raise Exception(
+                        f"Sum operator cannot be applied to str values: {lval}, {rval}."
+                    )
                 return lval + rval
             case ChironAST.Diff():
                 lval = self.forceValue(self.expressionEvaluation(expr.lexpr))
                 rval = self.forceValue(self.expressionEvaluation(expr.rexpr))
                 if isinstance(lval, str) or isinstance(rval, str):
-                    raise Exception(f"Subtraction operator cannot be applied to str values: {lval}, {rval}.")
+                    raise Exception(
+                        f"Subtraction operator cannot be applied to str values: {lval}, {rval}."
+                    )
                 return lval - rval
             case ChironAST.Mult():
                 lval = self.forceValue(self.expressionEvaluation(expr.lexpr))
                 rval = self.forceValue(self.expressionEvaluation(expr.rexpr))
                 if isinstance(lval, str) or isinstance(rval, str):
-                    raise Exception(f"Multiplication operator cannot be applied to str values: {lval}, {rval}.")
+                    raise Exception(
+                        f"Multiplication operator cannot be applied to str values: {lval}, {rval}."
+                    )
                 return lval * rval
             case ChironAST.Div():
                 lval = self.forceValue(self.expressionEvaluation(expr.lexpr))
                 rval = self.forceValue(self.expressionEvaluation(expr.rexpr))
                 if isinstance(lval, str) or isinstance(rval, str):
-                    raise Exception(f"Division operator cannot be applied to str values: {lval}, {rval}.")
-                if rval == 0:
-                    raise Exception("ChironLang Error: Division by zero")
+                    raise Exception(
+                        f"Division operator cannot be applied to str values: {lval}, {rval}."
+                    )
                 return lval / rval
-            case ChironAST.FunctionExpr(): return self.executeFunction(expr.callname, expr.args)
-            case ChironAST.LambdaExpr(): return self.handleLambdaExpr(expr)
-            case ChironAST.LazyExpr(): return self.handleLazyExpr(expr)
-            case ChironAST.RangeExpr(): return self.handleRangeExpr(expr)
-            case ChironAST.ListExpr(): return self.handleListExpr(expr)
-            case ChironAST.MatchExpr(): return self.handleMatchExpr(expr)
-            case ChironAST.WhereExpr(): return self.handleWhereExpr(expr)
-            case _ : raise Exception(f"Unknown expression: {type(expr)}, {expr}.")
+            case ChironAST.FunctionExpr():
+                return self.executeFunction(expr.callname, expr.args)
+            case ChironAST.LambdaExpr():
+                return self.handleLambdaExpr(expr)
+            case ChironAST.LazyExpr():
+                return self.handleLazyExpr(expr)
+            case ChironAST.RangeExpr():
+                return self.handleRangeExpr(expr)
+            case ChironAST.MatchExpr():
+                return self.handleMatchExpr(expr)
+            case ChironAST.WhereExpr():
+                return self.handleWhereExpr(expr)
+            case ChironAST.ListLiteral():
+                return [
+                    self.forceValue(self.expressionEvaluation(e)) for e in expr.elements
+                ]
+            case _:
+                raise Exception(f"Unknown expression: {type(expr)}, {expr}.")
 
     def conditionEvaluation(self, cond):
         match cond:
-            case ChironAST.NOT(): return not self.conditionEvaluation(cond.expr)
-            case ChironAST.PenStatus(): return self.trtl.isdown()
-            case ChironAST.BoolTrue(): return True
-            case ChironAST.BoolFalse(): return False
-            case ChironAST.AND(): return self.conditionEvaluation(cond.lexpr) and self.conditionEvaluation(cond.rexpr)
-            case ChironAST.OR(): return self.conditionEvaluation(cond.lexpr) or self.conditionEvaluation(cond.rexpr)
+            case ChironAST.NOT():
+                return not self.conditionEvaluation(cond.expr)
+            case ChironAST.PenStatus():
+                return self.trtl.isdown()
+            case ChironAST.BoolTrue():
+                return True
+            case ChironAST.BoolFalse():
+                return False
+            case ChironAST.AND():
+                return self.conditionEvaluation(
+                    cond.lexpr
+                ) and self.conditionEvaluation(cond.rexpr)
+            case ChironAST.OR():
+                return self.conditionEvaluation(cond.lexpr) or self.conditionEvaluation(
+                    cond.rexpr
+                )
         lval = self.forceValue(self.expressionEvaluation(cond.lexpr))
         rval = self.forceValue(self.expressionEvaluation(cond.rexpr))
         match cond:
-            case ChironAST.LT(): return lval < rval
-            case ChironAST.LTE(): return lval <= rval
-            case ChironAST.GT(): return lval > rval
-            case ChironAST.GTE(): return lval >= rval
-            case ChironAST.EQ(): return lval == rval
-            case ChironAST.NEQ(): return lval != rval
-            case _ : raise Exception(f"Unknown condition: {type(cond)}, {cond}.")
+            case ChironAST.LT():
+                return lval < rval
+            case ChironAST.LTE():
+                return lval <= rval
+            case ChironAST.GT():
+                return lval > rval
+            case ChironAST.GTE():
+                return lval >= rval
+            case ChironAST.EQ():
+                return lval == rval
+            case ChironAST.NEQ():
+                return lval != rval
+            case _:
+                raise Exception(f"Unknown condition: {type(cond)}, {cond}.")
 
     def executeFunction(self, callname, args):
         if len(self.call_stack) > 100:
             raise Exception("Maximum call stack depth exceeded.")
-        
-        function_name = self.forceValue(self.expressionEvaluation(callname))
-        
-        if not isinstance(function_name, str):
-            raise Exception(f"Invalid callable: '{callname}' evaluated to '{function_name}'")
-        
-        expected_arity = None
-        if function_name in self.adt:
-            expected_arity = len(self.adt[function_name])
-        elif function_name in self.function_def:
-            entry = self.function_def[function_name]
-            if isinstance(entry, dict) and entry.get('type') == 'lambda':
-                expected_arity = len(entry['params'])
-            elif isinstance(entry, tuple):
-                expected_arity = len(entry[0])
+
+        if isinstance(callname, ChironAST.Var):
+            function_name = self.variableCheck(callname.varname)
+        elif isinstance(callname, ChironAST.NameVal):
+            function_name = callname.val
         else:
-            builtins = {"force": 1, "take": 2, "length": 1, "map": 2, "filter": 2, "fold": 3, "head": 1, "tail": 1, "nth": 2, "cons": 2, "zipWith": 3}
-            expected_arity = builtins.get(function_name)
-
-        if expected_arity is not None and len(args) < expected_arity:
-            self.lambda_counter += 1
-            curried_name = f"__curried_auto_{self.lambda_counter}"
-            
-            eval_args = [self.expressionEvaluation(arg) for arg in args]
-            curried_scope = {}
-            new_args = []
-            
-            for i, val in enumerate(eval_args):
-                var_name = f":__c_val_{self.lambda_counter}_{i}"
-                curried_scope[var_name] = val
-                new_args.append(ChironAST.Var(var_name))
-            
-            missing_count = expected_arity - len(args)
-            missing_params = [f":__c_missing_{i}" for i in range(missing_count)]
-            new_args.extend([ChironAST.Var(p) for p in missing_params])
-            
-            body_expr = ChironAST.FunctionExpr(ChironAST.NameVal(function_name), new_args)
-            
-            self.function_def[curried_name] = {
-                'type': 'lambda',
-                'params': missing_params,
-                'body': body_expr,
-                'closure': list(self.stack) + [curried_scope]
-            }
-            return curried_name
-
-        if function_name in self.adt:
-            expected_args = self.adt[function_name]
-            if len(expected_args) != len(args):
-                raise Exception(f"ADT Variant {function_name} expects {len(expected_args)} args.")
-            eval_args = [self.expressionEvaluation(arg) for arg in args]
-            return ChironAST.ADTValue(function_name, eval_args)
+            raise Exception(f"Invalid function name: {callname}.")
 
         if function_name not in self.function_def:
+            # Check built-in functions first
             builtin_result = self.tryBuiltinFunction(function_name, args)
             if builtin_result is not None:
                 return builtin_result
             raise Exception(f"Undefined function: {function_name}.")
-        
+
         func_entry = self.function_def[function_name]
-        
-        if isinstance(func_entry, dict) and func_entry.get('type') == 'lambda':
+
+        # Check if this is a lambda function
+        if isinstance(func_entry, dict) and func_entry.get("type") == "lambda":
             return self.executeLambda(func_entry, args)
-        
-        # Unpack the standard function definition (now includes lexical closure)
-        arguments, start_pc, closure = func_entry
+
+        arguments, start_pc = func_entry
         if len(arguments) != len(args):
             raise Exception(f"Argument count mismatch for function {function_name}.")
-        
-        # Evaluate arguments in the current scope BEFORE switching environments
+
         eval_args = [self.expressionEvaluation(arg) for arg in args]
 
         local_scope = dict(zip(arguments, eval_args))
-        
-        # Save the current execution environment and switch to the lexical environment
-        old_stack = self.stack
-        self.stack = list(closure) + [local_scope]
-        
+        self.stack.append(local_scope)
         self.call_stack.append(self.pc)
+
         self.pc = start_pc
         ret_value = None
 
         while self.pc < len(self.ir):
             curr_stmt, curr_tgt = self.ir[self.pc]
             if isinstance(curr_stmt, ChironAST.ReturnCommand):
-                ret_value = self.expressionEvaluation(curr_stmt.rexpr) if curr_stmt.rexpr else None
+                ret_value = (
+                    self.expressionEvaluation(curr_stmt.rexpr)
+                    if curr_stmt.rexpr
+                    else None
+                )
                 break
             ntgt = self.executeInstruction(curr_stmt, curr_tgt)
             self.pc += ntgt
-        
-        # Restore the previous dynamic execution environment
+
+        self.stack.pop()
         self.pc = self.call_stack.pop()
-        self.stack = old_stack
         return ret_value
 
+    def formatValue(self, val):
+        if isinstance(val, list):
+            return "{" + ",".join(self.formatValue(v) for v in val) + "}"
+        return str(val)
+
     def handleAssignment(self, stmt):
-        print("  Assignment Statement")
         val = self.expressionEvaluation(stmt.rexpr)
-        
-        if len(stmt.lvars) > 1:
-            val = self.forceValue(val)
-            if not isinstance(val, list) and not isinstance(val, InfiniteRange):
-                raise Exception("Cannot unpack non-list value")
-            if isinstance(val, list) and len(val) < len(stmt.lvars):
-                raise Exception(f"Not enough values to unpack: expected {len(stmt.lvars)}, got {len(val)}")
-            
-            for i, var in enumerate(stmt.lvars):
-                varname = var.varname
-                item_val = val.get(i) if isinstance(val, InfiniteRange) else val[i]
-                
-                assigned = False
-                for scope in reversed(self.stack):
-                    if varname in scope:
-                        scope[varname] = item_val
-                        assigned = True
-                        break
-                if not assigned:
-                    self.stack[-1][varname] = item_val
-        else:
-            varname = stmt.lvars[0].varname
-            for scope in reversed(self.stack):
-                if varname in scope:
-                    scope[varname] = val
-                    return 1
-            self.stack[-1][varname] = val
-            
+        print("Assigned:", stmt.lvar.varname, "=", self.formatValue(val))
+        self.stack[-1][stmt.lvar.varname] = val
         return 1
 
     def handleCondition(self, stmt, tgt):
         print("  Branch Instruction")
-        cond_val= self.conditionEvaluation(stmt.cond)
+        cond_val = self.conditionEvaluation(stmt.cond)
         return 1 if cond_val else tgt
 
     def handleMove(self, stmt):
         print("  MoveCommand")
         dist = self.forceValue(self.expressionEvaluation(stmt.expr))
-        if stmt.direction == "forward": self.trtl.forward(dist)
-        elif stmt.direction == "backward": self.trtl.backward(dist)
-        elif stmt.direction == "left": self.trtl.left(dist)
-        elif stmt.direction == "right": self.trtl.right(dist)
-        else: raise Exception(f"Unknown move direction: {stmt.direction}.")
+        if stmt.direction == "forward":
+            self.trtl.forward(dist)
+        elif stmt.direction == "backward":
+            self.trtl.backward(dist)
+        elif stmt.direction == "left":
+            self.trtl.left(dist)
+        elif stmt.direction == "right":
+            self.trtl.right(dist)
+        else:
+            raise Exception(f"Unknown move direction: {stmt.direction}.")
         return 1
 
     def handleNoOpCommand(self, tgt):
@@ -390,9 +383,12 @@ class ConcreteInterpreter(Interpreter):
 
     def handlePen(self, stmt):
         print("  PenCommand")
-        if stmt.status == "penup": self.trtl.penup()
-        elif stmt.status == "pendown": self.trtl.pendown()
-        else: raise Exception(f"Unknown pen status: {stmt.status}.")
+        if stmt.status == "penup":
+            self.trtl.penup()
+        elif stmt.status == "pendown":
+            self.trtl.pendown()
+        else:
+            raise Exception(f"Unknown pen status: {stmt.status}.")
         return 1
 
     def handleGotoCommand(self, stmt):
@@ -401,236 +397,297 @@ class ConcreteInterpreter(Interpreter):
         ycor = self.forceValue(self.expressionEvaluation(stmt.ycor))
         self.trtl.goto(xcor, ycor)
         return 1
-    
+
     def handlePauseCommand(self):
         print(" PauseCommand")
         return 1
-    
-    def handleFunctionCallCommand(self,stmt):
+
+    def handleFunctionCallCommand(self, stmt):
         print(" FunctionCallCommand")
         self.executeFunction(stmt.callname, stmt.args)
         return 1
-    
+
     def handleFunctionDefCommand(self, stmt, tgt):
         print(" FunctionDefCommand")
-        lexical_env = list(self.stack)
-        self.function_def[stmt.funcname] = (stmt.params, self.pc + 1, lexical_env)
+        self.function_def[stmt.funcname] = (stmt.params, self.pc + 1)
         return tgt
 
     def handleLambdaExpr(self, expr):
         self.lambda_counter += 1
         lambda_name = f"__lambda_{self.lambda_counter}"
-        
-        lexical_env = list(self.stack)
-        
+
+        captured_scope = {}
+        for scope in self.stack:
+            captured_scope.update(scope)
+
         self.function_def[lambda_name] = {
-            'type': 'lambda',
-            'params': expr.params,
-            'body': expr.body_expr,
-            'closure': lexical_env
+            "type": "lambda",
+            "params": expr.params,
+            "body": expr.body_expr,
+            "closure": captured_scope,
         }
-        
+
         return lambda_name
-    
-    def handleTypeDefCommand(self, stmt, tgt):
-        print("  TypeDefCommand")
-        for variant_name, params in stmt.variants.items():
-            self.adt[variant_name] = params
-        return tgt
-    
+
     def executeLambda(self, lambda_def, args):
-        params = lambda_def['params']
-        body = lambda_def['body']
-        closure = lambda_def['closure']
-        
+        if lambda_def.get("type") == "compose":
+            f = lambda_def["f"]
+            g = lambda_def["g"]
+
+            if len(args) != 1:
+                raise Exception("composed function takes exactly 1 argument")
+
+            x = self.expressionEvaluation(args[0])
+            gx = self.callFunctionByName(g, [x])
+            return self.callFunctionByName(f, [gx])
+
+        params = lambda_def["params"]
+        body = lambda_def["body"]
+        closure = lambda_def["closure"]
+
         if len(params) != len(args):
-            raise Exception(f"Lambda argument count mismatch: expected {len(params)}, got {len(args)}.")
-        
+            raise Exception(
+                f"Lambda argument count mismatch: expected {len(params)}, got {len(args)}."
+            )
+
         eval_args = [self.expressionEvaluation(arg) for arg in args]
-        local_scope = dict(zip(params, eval_args))
-        
-        old_stack = self.stack
-        self.stack = list(closure) + [local_scope]
-        
+
+        local_scope = dict(closure)
+        local_scope.update(dict(zip(params, eval_args)))
+
+        self.stack.append(local_scope)
         ret_value = self.expressionEvaluation(body)
-        
-        self.stack = old_stack
-        
+        self.stack.pop()
+
         return ret_value
 
     # -- Lazy Evaluation Methods --
 
     def forceValue(self, val):
+        """Force a thunk to evaluate. If already a concrete value, return as-is.
+        Called transparently whenever a concrete value is needed."""
         if isinstance(val, Thunk):
             if not val.evaluated:
                 old_stack = self.stack
-                self.stack = list(val.scope_snapshot) + [{}]
+                self.stack = val.scope_snapshot + [{}]
                 val.cached_value = self.forceValue(self.expressionEvaluation(val.expr))
                 self.stack = old_stack
                 val.evaluated = True
             return val.cached_value
-        elif isinstance(val, list):
-            return [self.forceValue(v) for v in val]
         return val
-    
+
     def handleLazyExpr(self, expr):
-        scope_snapshot = list(self.stack)
+        """Create a thunk — a deferred computation that captures the current scope."""
+        scope_snapshot = [dict(scope) for scope in self.stack]
         return Thunk(expr.expr, scope_snapshot)
-    
+
     def handleRangeExpr(self, expr):
+        """Handle range expressions: [1..10] for finite, [1..] for infinite."""
         start = int(self.forceValue(self.expressionEvaluation(expr.start_expr)))
         if expr.end_expr is not None:
             end = int(self.forceValue(self.expressionEvaluation(expr.end_expr)))
             return list(range(start, end + 1))
         else:
             return InfiniteRange(start)
-        
-    def handleListExpr(self, expr):
-        return [self.expressionEvaluation(e) for e in expr.elements]
-    
+
     # -- Pattern Matching --
 
     def handleMatchExpr(self, expr):
+        """
+        Pattern matching: match :x with | 0 => expr1 | :y => expr2 | _ => expr3
+        Evaluates subject, then tries each case in order.
+        - Numeric pattern (Num): exact value match
+        - Variable pattern (Var): binds the value to the variable, always matches
+        - Wildcard pattern (_): always matches (default case)
+        """
         subject_val = self.forceValue(self.expressionEvaluation(expr.subject))
-        
-        def is_match(pattern, subject, env):
-            if isinstance(pattern, ChironAST.NameVal) and pattern.val == "_":
-                return True
-            elif isinstance(pattern, ChironAST.Num):
-                return subject == pattern.val
-            elif isinstance(pattern, ChironAST.Var):
-                env[pattern.varname] = subject
-                return True
-            elif isinstance(pattern, ChironAST.ADTPattern):
-                if isinstance(subject, ChironAST.ADTValue) and subject.label == pattern.label:
-                    if len(subject.values) != len(pattern.variables): raise Exception("Arity mismatch")
-                    for var_name, val in zip(pattern.variables, subject.values):
-                        env[var_name] = val
-                    return True
-                return False
-            elif isinstance(pattern, ChironAST.ListPattern):
-                subject = self.forceValue(subject)
-                if isinstance(subject, list) and len(subject) == len(pattern.patterns):
-                    for pat, val in zip(pattern.patterns, subject):
-                        if not is_match(pat, val, env):
-                            return False
-                    return True
-                return False
-            return False
 
         for pattern, result_expr in expr.cases:
-            env = {}
-            if is_match(pattern, subject_val, env):
-                self.stack.append(env)
+            if isinstance(pattern, ChironAST.NameVal) and pattern.val == "_":
+                # Wildcard: always matches
+                return self.expressionEvaluation(result_expr)
+            elif isinstance(pattern, ChironAST.Num):
+                # Numeric literal: exact value match
+                if subject_val == pattern.val:
+                    return self.expressionEvaluation(result_expr)
+            elif isinstance(pattern, ChironAST.Var):
+                # Variable pattern: bind the matched value and evaluate
+                self.stack.append({pattern.varname: subject_val})
                 result = self.expressionEvaluation(result_expr)
                 self.stack.pop()
                 return result
-        
+
         raise Exception(f"Non-exhaustive pattern match for value: {subject_val}")
-    
+
     # -- Where Clauses --
 
     def handleWhereExpr(self, expr):
+        """
+        Where clause: expression where :x = 10, :y = :x * 2
+        Creates a temporary scope, evaluates bindings sequentially
+        (so later bindings can reference earlier ones), evaluates the
+        body expression in that scope, then removes the scope.
+        """
         local_scope = {}
         self.stack.append(local_scope)
         for var_name, bind_expr in expr.bindings:
             local_scope[var_name] = self.expressionEvaluation(bind_expr)
-        
+
         result = self.expressionEvaluation(expr.body)
         self.stack.pop()
         return result
-    
+
     def callFunctionByName(self, func_name, arg_values):
+        """Helper: call a function by name with already-evaluated argument values."""
+
+        #  ADD THIS BLOCK AT THE TOP
+        if func_name in self.function_def:
+            func_entry = self.function_def[func_name]
+
+            if isinstance(func_entry, dict) and func_entry.get("type") == "compose":
+                f = func_entry["f"]
+                g = func_entry["g"]
+
+                if len(arg_values) != 1:
+                    raise Exception("composed function takes exactly 1 argument")
+
+                x = arg_values[0]
+
+                gx = self.callFunctionByName(g, [x])
+                return self.callFunctionByName(f, [gx])
+
+        # EXISTING CODE BELOW (unchanged)
         temp_args = []
         temp_scope = {}
+
         for i, val in enumerate(arg_values):
-            temp_var = f":__arg_{i}"
-            temp_scope[temp_var] = val
-            temp_args.append(ChironAST.Var(temp_var))
-        
+           temp_var = f":__arg_{i}"
+           temp_scope[temp_var] = val
+           temp_args.append(ChironAST.Var(temp_var))
+
         self.stack.append(temp_scope)
         result = self.executeFunction(ChironAST.NameVal(func_name), temp_args)
         self.stack.pop()
+
         return result
 
     def tryBuiltinFunction(self, function_name, args):
+        """Handle built-in functions. Returns None if not a built-in."""
+
         if function_name == "force":
             if len(args) != 1:
                 raise Exception("force requires exactly 1 argument")
             val = self.expressionEvaluation(args[0])
             return self.forceValue(val)
-        
+
+        elif function_name == "compose":
+            if len(args) != 2:
+                raise Exception("compose requires exactly 2 arguments")
+
+            f = self.expressionEvaluation(args[0])
+            g = self.expressionEvaluation(args[1])
+
+            # create new lambda function
+            self.lambda_counter += 1
+            lambda_name = f"__lambda_{self.lambda_counter}"
+
+            def composed_func(x):
+                gx = self.callFunctionByName(g, [x])
+                return self.callFunctionByName(f, [gx])
+
+            # store as lambda-like structure
+            self.function_def[lambda_name] = {"type": "compose", "f": f, "g": g}
+
+            return lambda_name
+
+        elif function_name == "apply":
+            if len(args) != 2:
+                raise Exception("apply requires exactly 2 arguments")
+
+            fn = self.expressionEvaluation(args[0])
+            val = self.expressionEvaluation(args[1])
+
+            return self.callFunctionByName(fn, [val])
+
         elif function_name == "take":
             if len(args) != 2:
                 raise Exception("take requires exactly 2 arguments: take(n, list)")
             n = int(self.forceValue(self.expressionEvaluation(args[0])))
-            lst = self.forceValue(self.expressionEvaluation(args[1]))
+            lst = self.expressionEvaluation(args[1])
             if isinstance(lst, InfiniteRange):
                 return lst.take_n(n)
             if isinstance(lst, list):
                 return lst[:n]
-            raise Exception(f"take second argument must be a list or range, got: {type(lst)}")
-        
+            raise Exception(
+                f"take second argument must be a list or range, got: {type(lst)}"
+            )
+
         elif function_name == "head":
             if len(args) != 1:
                 raise Exception("head requires exactly 1 argument")
-            lst = self.forceValue(self.expressionEvaluation(args[0]))
+            lst = self.expressionEvaluation(args[0])
             if isinstance(lst, InfiniteRange):
                 return lst.get(0)
             if not isinstance(lst, list) or len(lst) == 0:
                 raise Exception("head called on empty or non-list")
             return lst[0]
-        
+
         elif function_name == "tail":
             if len(args) != 1:
                 raise Exception("tail requires exactly 1 argument")
-            lst = self.forceValue(self.expressionEvaluation(args[0]))
+            lst = self.expressionEvaluation(args[0])
             if isinstance(lst, InfiniteRange):
                 return InfiniteRange(lst.start + 1)
             if not isinstance(lst, list) or len(lst) == 0:
                 raise Exception("tail called on empty or non-list")
             return lst[1:]
-        
+
         elif function_name == "length":
             if len(args) != 1:
                 raise Exception("length requires exactly 1 argument")
-            lst = self.forceValue(self.expressionEvaluation(args[0]))
+            lst = self.expressionEvaluation(args[0])
             if isinstance(lst, InfiniteRange):
                 raise Exception("Cannot take length of infinite range")
             if not isinstance(lst, list):
                 raise Exception("length called on non-list")
             return len(lst)
-        
+
         elif function_name == "nth":
             if len(args) != 2:
                 raise Exception("nth requires exactly 2 arguments: nth(list, index)")
-            lst = self.forceValue(self.expressionEvaluation(args[0]))
+            lst = self.expressionEvaluation(args[0])
             idx = int(self.forceValue(self.expressionEvaluation(args[1])))
             if isinstance(lst, InfiniteRange):
                 return lst.get(idx)
             if not isinstance(lst, list):
                 raise Exception("nth first argument must be a list")
             if idx < 0 or idx >= len(lst):
-                raise Exception(f"nth index {idx} out of bounds for list of length {len(lst)}")
+                raise Exception(
+                    f"nth index {idx} out of bounds for list of length {len(lst)}"
+                )
             return lst[idx]
-        
+
         elif function_name == "cons":
             if len(args) != 2:
                 raise Exception("cons requires exactly 2 arguments: cons(elem, list)")
             elem = self.expressionEvaluation(args[0])
-            lst = self.forceValue(self.expressionEvaluation(args[1]))
+            lst = self.expressionEvaluation(args[1])
             if not isinstance(lst, list):
                 raise Exception("cons second argument must be a list")
             return [elem] + lst
-        
+
         elif function_name == "zipWith":
             if len(args) != 3:
-                raise Exception("zipWith requires exactly 3 arguments: zipWith(func, list1, list2)")
-            func_name_val = self.forceValue(self.expressionEvaluation(args[0]))
-            lst1 = self.forceValue(self.expressionEvaluation(args[1]))
-            lst2 = self.forceValue(self.expressionEvaluation(args[2]))
+                raise Exception(
+                    "zipWith requires exactly 3 arguments: zipWith(func, list1, list2)"
+                )
+            func_name_val = self.expressionEvaluation(args[0])
+            lst1 = self.expressionEvaluation(args[1])
+            lst2 = self.expressionEvaluation(args[2])
             if isinstance(lst1, InfiniteRange) and isinstance(lst2, InfiniteRange):
-                raise Exception("zipWith cannot operate on two infinite ranges. Use take() on at least one.")
+                raise Exception(
+                    "zipWith cannot operate on two infinite ranges. Use take() on at least one."
+                )
             if isinstance(lst1, InfiniteRange):
                 lst1 = lst1.take_n(len(lst2))
             if isinstance(lst2, InfiniteRange):
@@ -638,36 +695,45 @@ class ConcreteInterpreter(Interpreter):
             if not isinstance(lst1, list) or not isinstance(lst2, list):
                 raise Exception("zipWith arguments must be lists")
             min_len = min(len(lst1), len(lst2))
-            return [self.callFunctionByName(func_name_val, [lst1[i], lst2[i]]) for i in range(min_len)]
-        
+            return [
+                self.callFunctionByName(func_name_val, [lst1[i], lst2[i]])
+                for i in range(min_len)
+            ]
+
         elif function_name == "map":
             if len(args) != 2:
                 raise Exception("map requires exactly 2 arguments: map(func, list)")
-            fn = self.forceValue(self.expressionEvaluation(args[0]))
-            lst = self.forceValue(self.expressionEvaluation(args[1]))
+            fn = self.expressionEvaluation(args[0])
+            lst = self.expressionEvaluation(args[1])
             if not isinstance(lst, list):
                 raise Exception(f"map second argument must be a list, got: {type(lst)}")
             return [self.callFunctionByName(fn, [elem]) for elem in lst]
-        
+
         elif function_name == "filter":
             if len(args) != 2:
-                raise Exception("filter requires exactly 2 arguments: filter(func, list)")
-            fn = self.forceValue(self.expressionEvaluation(args[0]))
-            lst = self.forceValue(self.expressionEvaluation(args[1]))
+                raise Exception(
+                    "filter requires exactly 2 arguments: filter(func, list)"
+                )
+            fn = self.expressionEvaluation(args[0])
+            lst = self.expressionEvaluation(args[1])
             if not isinstance(lst, list):
-                raise Exception(f"filter second argument must be a list, got: {type(lst)}")
+                raise Exception(
+                    f"filter second argument must be a list, got: {type(lst)}"
+                )
             return [elem for elem in lst if self.callFunctionByName(fn, [elem])]
-        
+
         elif function_name == "fold":
             if len(args) != 3:
-                raise Exception("fold requires exactly 3 arguments: fold(func, initial, list)")
-            fn = self.forceValue(self.expressionEvaluation(args[0]))
+                raise Exception(
+                    "fold requires exactly 3 arguments: fold(func, initial, list)"
+                )
+            fn = self.expressionEvaluation(args[0])
             accumulator = self.expressionEvaluation(args[1])
-            lst = self.forceValue(self.expressionEvaluation(args[2]))
+            lst = self.expressionEvaluation(args[2])
             if not isinstance(lst, list):
                 raise Exception(f"fold third argument must be a list, got: {type(lst)}")
             for elem in lst:
                 accumulator = self.callFunctionByName(fn, [accumulator, elem])
             return accumulator
-        
+
         return None
