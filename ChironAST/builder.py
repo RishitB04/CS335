@@ -39,10 +39,14 @@ class astGenPass(tlangVisitor):
 
 
     def visitAssignment(self, ctx:tlangParser.AssignmentContext):
-        lvars = [ChironAST.Var(var.getText()) for var in ctx.VAR()]
+        lval = ChironAST.Var(ctx.VAR().getText())
         rval = self.visit(ctx.expression())
-        return [(ChironAST.AssignmentCommand(lvars, rval), 1)]
+        # print("RVAL:", rval)
+        return [(ChironAST.AssignmentCommand(lval, rval), 1)]
+    
+    
 
+# Modified ifelse IR generation
     def visitIfConditional(self, ctx:tlangParser.IfConditionalContext):
         ifCondition = self.visit(ctx.condition())
         ifScopeIR = []
@@ -115,11 +119,6 @@ class astGenPass(tlangVisitor):
             return ChironAST.Mult(left, right)
         elif ctx.multiplicative().DIV():
             return ChironAST.Div(left, right)
-
-
-    # Visit a parse tree produced by tlangParser#parenExpr.
-    def visitParenExpr(self, ctx:tlangParser.ParenExprContext):
-        return self.visit(ctx.expression()) 
    
 
     def visitCondition(self, ctx:tlangParser.ConditionContext):
@@ -165,6 +164,20 @@ class astGenPass(tlangVisitor):
             return self.visit(ctx.condition(0))
 
         return self.visitChildren(ctx)
+    
+    def visitExpression(self, ctx:tlangParser.ExpressionContext):
+        # Always propagate to the actual child
+        return self.visitChildren(ctx)
+    
+    def visitValueExpr(self, ctx):
+        return self.visit(ctx.value())
+
+    def visitParenExpr(self, ctx):
+        return self.visit(ctx.expression())
+
+    def visitFuncExpr(self, ctx):
+        callname, args = self.buildFunctionCall(ctx.functionCall())
+        return ChironAST.FunctionExpr(callname, args)
 
     def visitValue(self, ctx:tlangParser.ValueContext):
         if ctx.NUM():
@@ -179,11 +192,11 @@ class astGenPass(tlangVisitor):
         self.repeatInstrCount += 1
         repeatNum = self.visit(ctx.value())
         counterVar = ChironAST.Var(":__rep_counter_" + str(self.repeatInstrCount))
-        counterVarInitInstr = ChironAST.AssignmentCommand([counterVar], repeatNum)
+        counterVarInitInstr = ChironAST.AssignmentCommand(counterVar, repeatNum)
         constZero = ChironAST.Num(0)
         constOne = ChironAST.Num(1)
         loopCond = ChironAST.ConditionCommand(ChironAST.GT(counterVar, constZero))
-        counterVarDecrInstr = ChironAST.AssignmentCommand([counterVar], ChironAST.Diff(counterVar, constOne))
+        counterVarDecrInstr = ChironAST.AssignmentCommand(counterVar, ChironAST.Diff(counterVar, constOne))
 
         thenInstrList = []
         for instr in ctx.strict_ilist().instruction():
@@ -228,20 +241,24 @@ class astGenPass(tlangVisitor):
         rexpr = self.visit(ctx.expression()) if ctx.expression() else None
         return [(ChironAST.ReturnCommand(rexpr), 1)]
     
-    def visitFunctionCall(self, ctx:tlangParser.FunctionCallContext):
-        callname = self.visit(ctx.expression())
+    def buildFunctionCall(self, ctx:tlangParser.FunctionCallContext):
+        callname = ChironAST.NameVal(ctx.NAME().getText())
+    
         args = []
         if ctx.argumentList():
-            for arg in ctx.argumentList().expression():
-                args.append(self.visit(arg))
+          for arg in ctx.argumentList().expression():
+            args.append(self.visit(arg))
+    
+        return callname, args
+    
+    
+    def visitFunctionCall(self, ctx:tlangParser.FunctionCallContext):
+        callname, args = self.buildFunctionCall(ctx)
         return [(ChironAST.FunctionCallCommand(callname, args), 1)]
     
     def visitFuncExpr(self, ctx:tlangParser.FuncExprContext):
-        callname = self.visit(ctx.expression())
-        args = []
-        if ctx.argumentList():
-            for arg in ctx.argumentList().expression():
-                args.append(self.visit(arg))
+        # print(" FUNCTION VALL VISITED")
+        callname, args = self.buildFunctionCall(ctx.functionCall())
         return ChironAST.FunctionExpr(callname, args)
 
     def visitLambdaExpression(self, ctx:tlangParser.LambdaExpressionContext):
@@ -255,9 +272,16 @@ class astGenPass(tlangVisitor):
     def visitLazyExpression(self, ctx:tlangParser.LazyExpressionContext):
         return self.visit(ctx.lazyExpr())
     
-    def visitLazyExpr(self, ctx:tlangParser.LazyExprContext):
+    def visitLazyExpr(self, ctx):
+        print("LAZY EXPR HIT:", ctx.getText())
+ 
         expr = self.visit(ctx.expression())
+
+        if expr is None:
+           raise Exception(f"LazyExpr inner expression returned None for: {ctx.getText()}")
+
         return ChironAST.LazyExpr(expr)
+
     
     def visitRangeExpression(self, ctx:tlangParser.RangeExpressionContext):
         return self.visit(ctx.rangeExpr())
@@ -267,12 +291,6 @@ class astGenPass(tlangVisitor):
         start_expr = self.visit(exprs[0])
         end_expr = self.visit(exprs[1]) if len(exprs) > 1 else None
         return ChironAST.RangeExpr(start_expr, end_expr)
-    
-    def visitListExpression(self, ctx:tlangParser.ListExpressionContext):
-        return self.visit(ctx.listExpr())
-    
-    def visitListExpr(self, ctx:tlangParser.ListExprContext):
-        return ChironAST.ListExpr([self.visit(e) for e in ctx.expression()])
 
     # -- Pattern Matching --
 
@@ -296,19 +314,8 @@ class astGenPass(tlangVisitor):
             return ChironAST.Num(ctx.NUM().getText())
         elif ctx.VAR():
             return ChironAST.Var(ctx.VAR().getText())
-        elif ctx.typeVariant():
-            variant_ctx = ctx.typeVariant()
-            label = variant_ctx.NAME().getText()
-            variables = [v.getText() for v in variant_ctx.VAR()] if variant_ctx.VAR() else []
-            return ChironAST.ADTPattern(label, variables)
-        elif ctx.listPattern():
-            patterns = [self.visit(p) for p in ctx.listPattern().pattern()]
-            return ChironAST.ListPattern(patterns)
         else:
             return ChironAST.NameVal("_")
-        
-    def visitListPattern(self, ctx:tlangParser.ListPatternContext):
-        return self.visitChildren(ctx)
 
     # -- Where Clauses --
 
@@ -323,31 +330,15 @@ class astGenPass(tlangVisitor):
     
     def visitWhereBinding(self, ctx:tlangParser.WhereBindingContext):
         return self.visitChildren(ctx)
+    
+    def visitListLiteralExpr(self, ctx:tlangParser.ListLiteralExprContext):
+        # print("LIST LITERAL BUILDER HIT")
 
-    def visitPipeExpr(self, ctx:tlangParser.PipeExprContext):
-        left_expr = self.visit(ctx.expression(0))
-        
-        right_ast = self.visit(ctx.expression(1))
+        list_ctx = ctx.listLiteral()   #IMPORTANT
 
-        if isinstance(right_ast, ChironAST.FunctionExpr):
-            new_args = right_ast.args + [left_expr]
-            return ChironAST.FunctionExpr(right_ast.callname, new_args)
-        elif isinstance(right_ast, (ChironAST.Var, ChironAST.NameVal)):
-            return ChironAST.FunctionExpr(right_ast, [left_expr])
-        else:
-            raise Exception(f"Syntax Error: Right side of '|>' must be a function call or function name instead of {type(right_ast).__name__}.")
-        
-    def visitTypeDeclaration(self, ctx:tlangParser.TypeDeclarationContext):
-        typename = ctx.NAME().getText()
-        variants = {}
-        
-        for variant_ctx in ctx.typeVariant():
-            variant_name = variant_ctx.NAME().getText()
-            
-            params = []
-            if variant_ctx.VAR():
-                params = [var.getText() for var in variant_ctx.VAR()]
-                
-            variants[variant_name] = params
-            
-        return [(ChironAST.TypeDefCommand(typename, variants), 1)]
+        elements = []
+        if list_ctx.expression():
+          for expr in list_ctx.expression():
+            elements.append(self.visit(expr))
+
+        return ChironAST.ListLiteral(elements)
