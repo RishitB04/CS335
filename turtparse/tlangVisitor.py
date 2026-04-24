@@ -49,6 +49,16 @@ class tlangVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by tlangParser#typeDeclaration.
+    def visitTypeDeclaration(self, ctx:tlangParser.TypeDeclarationContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#typeVariant.
+    def visitTypeVariant(self, ctx:tlangParser.TypeVariantContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by tlangParser#ifConditional.
     def visitIfConditional(self, ctx:tlangParser.IfConditionalContext):
         return self.visitChildren(ctx)
@@ -114,6 +124,21 @@ class tlangVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by tlangParser#funcExpr.
+    def visitFuncExpr(self, ctx:tlangParser.FuncExprContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#lazyExpression.
+    def visitLazyExpression(self, ctx:tlangParser.LazyExpressionContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#parenExpr.
+    def visitParenExpr(self, ctx:tlangParser.ParenExprContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by tlangParser#whereExpression.
     def visitWhereExpression(self, ctx:tlangParser.WhereExpressionContext):
         return self.visitChildren(ctx)
@@ -129,11 +154,6 @@ class tlangVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by tlangParser#funcExpr.
-    def visitFuncExpr(self, ctx:tlangParser.FuncExprContext):
-        return self.visitChildren(ctx)
-
-
     # Visit a parse tree produced by tlangParser#addExpr.
     def visitAddExpr(self, ctx:tlangParser.AddExprContext):
         return self.visitChildren(ctx)
@@ -144,18 +164,13 @@ class tlangVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by tlangParser#lazyExpression.
-    def visitLazyExpression(self, ctx:tlangParser.LazyExpressionContext):
-        return self.visitChildren(ctx)
-
-
     # Visit a parse tree produced by tlangParser#rangeExpression.
     def visitRangeExpression(self, ctx:tlangParser.RangeExpressionContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by tlangParser#parenExpr.
-    def visitParenExpr(self, ctx:tlangParser.ParenExprContext):
+    # Visit a parse tree produced by tlangParser#listExpression.
+    def visitListExpression(self, ctx:tlangParser.ListExpressionContext):
         return self.visitChildren(ctx)
 
 
@@ -171,6 +186,11 @@ class tlangVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by tlangParser#rangeExpr.
     def visitRangeExpr(self, ctx:tlangParser.RangeExprContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#listExpr.
+    def visitListExpr(self, ctx:tlangParser.ListExprContext):
         return self.visitChildren(ctx)
 
 

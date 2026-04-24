@@ -20,12 +20,16 @@ instruction : assignment
 		| functionDeclaration
 		| functionCall
 		| returnInstruction
+		| typeDeclaration
 	    ;
 
 functionDeclaration : 'to' NAME (VAR)* strict_ilist 'end';
 functionCall : expression '(' argumentList? ')' ;
 argumentList : expression (',' expression)* ;
 returnInstruction : 'return' expression? ;
+
+typeDeclaration : 'type' NAME '=' typeVariant ('|' typeVariant)* ;
+typeVariant : NAME ('(' VAR (',' VAR)* ')')? ;
 
 ifConditional : 'if' condition '[' strict_ilist ']' (elifConditional)* elseConditional? ;
 
@@ -37,7 +41,7 @@ loop : 'repeat' value '[' strict_ilist ']' ;
 
 gotoCommand : 'goto' '(' expression ',' expression ')';
 
-assignment : VAR '=' expression
+assignment : VAR (',' VAR)* '=' expression
 	   ;
 
 moveCommand : moveOp expression ;
@@ -57,6 +61,7 @@ expression :
 		   | lambdaExpr							   				  	#lambdaExpression
 		   | lazyExpr							   					#lazyExpression
 		   | rangeExpr							   					#rangeExpression
+		   | listExpr                                               #listExpression
 		   | matchExpr							   					#matchExpression
 		   | value                                 					#valueExpr
 		   | '(' expression ')'                   	 				#parenExpr
@@ -68,9 +73,14 @@ lazyExpr : 'lazy' expression ;
 
 rangeExpr : '[' expression '..' expression? ']' ;
 
+listExpr : '[' (expression (',' expression)*)? ']' ;
+
 matchExpr : 'match' expression 'with' matchCase+ ;
 matchCase : '|' pattern '=>' expression ;
-pattern : NUM | VAR | '_' ;
+
+pattern : NUM | VAR | '_' | typeVariant | listPattern ;
+
+listPattern : '[' (pattern (',' pattern)*)? ']' ;
 
 whereBinding : VAR '=' expression ;
 
@@ -113,7 +123,7 @@ value : NUM
 
 NUM  : [0-9]+        ;
 
-VAR  : ':'[a-zA-Z_] [a-zA-Z0-9]* ;
+VAR  : ':'[a-zA-Z_][a-zA-Z0-9_]* ;
 
 NAME : [a-zA-Z]+     ;
 

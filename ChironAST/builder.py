@@ -39,11 +39,10 @@ class astGenPass(tlangVisitor):
 
 
     def visitAssignment(self, ctx:tlangParser.AssignmentContext):
-        lval = ChironAST.Var(ctx.VAR().getText())
+        lvars = [ChironAST.Var(var.getText()) for var in ctx.VAR()]
         rval = self.visit(ctx.expression())
-        return [(ChironAST.AssignmentCommand(lval, rval), 1)]
+        return [(ChironAST.AssignmentCommand(lvars, rval), 1)]
 
-# Modified ifelse IR generation
     def visitIfConditional(self, ctx:tlangParser.IfConditionalContext):
         ifCondition = self.visit(ctx.condition())
         ifScopeIR = []
@@ -184,7 +183,7 @@ class astGenPass(tlangVisitor):
         constZero = ChironAST.Num(0)
         constOne = ChironAST.Num(1)
         loopCond = ChironAST.ConditionCommand(ChironAST.GT(counterVar, constZero))
-        counterVarDecrInstr = ChironAST.AssignmentCommand(counterVar, ChironAST.Diff(counterVar, constOne))
+        counterVarDecrInstr = ChironAST.AssignmentCommand([counterVar], ChironAST.Diff(counterVar, constOne))
 
         thenInstrList = []
         for instr in ctx.strict_ilist().instruction():
@@ -268,6 +267,12 @@ class astGenPass(tlangVisitor):
         start_expr = self.visit(exprs[0])
         end_expr = self.visit(exprs[1]) if len(exprs) > 1 else None
         return ChironAST.RangeExpr(start_expr, end_expr)
+    
+    def visitListExpression(self, ctx:tlangParser.ListExpressionContext):
+        return self.visit(ctx.listExpr())
+    
+    def visitListExpr(self, ctx:tlangParser.ListExprContext):
+        return ChironAST.ListExpr([self.visit(e) for e in ctx.expression()])
 
     # -- Pattern Matching --
 
@@ -291,8 +296,19 @@ class astGenPass(tlangVisitor):
             return ChironAST.Num(ctx.NUM().getText())
         elif ctx.VAR():
             return ChironAST.Var(ctx.VAR().getText())
+        elif ctx.typeVariant():
+            variant_ctx = ctx.typeVariant()
+            label = variant_ctx.NAME().getText()
+            variables = [v.getText() for v in variant_ctx.VAR()] if variant_ctx.VAR() else []
+            return ChironAST.ADTPattern(label, variables)
+        elif ctx.listPattern():
+            patterns = [self.visit(p) for p in ctx.listPattern().pattern()]
+            return ChironAST.ListPattern(patterns)
         else:
             return ChironAST.NameVal("_")
+        
+    def visitListPattern(self, ctx:tlangParser.ListPatternContext):
+        return self.visitChildren(ctx)
 
     # -- Where Clauses --
 
@@ -320,3 +336,31 @@ class astGenPass(tlangVisitor):
             return ChironAST.FunctionExpr(right_ast, [left_expr])
         else:
             raise Exception(f"Syntax Error: Right side of '|>' must be a function call or function name instead of {type(right_ast).__name__}.")
+        
+    def visitTypeDeclaration(self, ctx:tlangParser.TypeDeclarationContext):
+        typename = ctx.NAME().getText()
+        variants = {}
+        
+        for variant_ctx in ctx.typeVariant():
+            variant_name = variant_ctx.NAME().getText()
+            
+            params = []
+            if variant_ctx.VAR():
+                params = [var.getText() for var in variant_ctx.VAR()]
+                
+            variants[variant_name] = params
+            
+        return [(ChironAST.TypeDefCommand(typename, variants), 1)]
+    
+    def visitPattern(self, ctx:tlangParser.PatternContext):
+        if ctx.NUM():
+            return ChironAST.Num(ctx.NUM().getText())
+        elif ctx.VAR():
+            return ChironAST.Var(ctx.VAR().getText())
+        elif ctx.typeVariant():
+            variant_ctx = ctx.typeVariant()
+            label = variant_ctx.NAME().getText()
+            variables = [v.getText() for v in variant_ctx.VAR()] if variant_ctx.VAR() else []
+            return ChironAST.ADTPattern(label, variables)
+        else:
+            return ChironAST.NameVal("_")

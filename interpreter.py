@@ -4,7 +4,6 @@ import turtle
 
 Release="Chiron v5.3"
 
-# -- Lazy Evaluation Support --
 
 class Thunk:
     """A deferred computation. Stores the expression and the scope snapshot.
@@ -19,6 +18,8 @@ class Thunk:
         if self.evaluated:
             return f"Thunk(cached={self.cached_value})"
         return f"Thunk(unevaluated={self.expr})"
+    
+    __repr__ = __str__
 
 class InfiniteRange:
     """Represents a lazy infinite range [start..]. Elements are generated on demand."""
@@ -38,6 +39,8 @@ class InfiniteRange:
         if self.generated:
             return f"[{self.start}.. (generated {len(self.generated)} elements)]"
         return f"[{self.start}..]"
+    
+    __repr__ = __str__
 
 class Interpreter:
     # Turtle program should not contain variable with names "ir", "pc", "t_screen"
@@ -114,6 +117,7 @@ class ConcreteInterpreter(Interpreter):
         self.call_stack=[];
         self.function_def={};
         self.lambda_counter = 0;
+        self.adt = {};
         # Hooks Object:
         if self.args is not None and self.args.hooks:
             self.chironhook = Chironhooks.ConcreteChironHooks()
@@ -130,6 +134,7 @@ class ConcreteInterpreter(Interpreter):
             case ChironAST.PauseCommand(): return self.handlePauseCommand()
             case ChironAST.FunctionCallCommand(): return self.handleFunctionCallCommand(stmt)
             case ChironAST.FunctionDefCommand(): return self.handleFunctionDefCommand(stmt,tgt)
+            case ChironAST.TypeDefCommand(): return self.handleTypeDefCommand(stmt, tgt)
             case ChironAST.ReturnCommand(): return tgt
             case _ : raise Exception(f"Unknown instruction: {type(stmt)}, {stmt}.")
 
@@ -154,7 +159,6 @@ class ConcreteInterpreter(Interpreter):
             return False
     
     def initProgramContext(self, params):
-        # This is the starting of the interpreter at setup stage.
         if self.args is not None and self.args.hooks:
             self.chironhook.ChironStartHook(self)
         self.trtl.write("Start", font=("Arial", 15, "bold"))
@@ -171,7 +175,10 @@ class ConcreteInterpreter(Interpreter):
         match expr:
             case ChironAST.Num(): return expr.val
             case ChironAST.Var(): return self.variableCheck(expr.varname)
-            case ChironAST.NameVal(): return expr.val
+            case ChironAST.NameVal(): 
+                if expr.val in self.adt and len(self.adt[expr.val]) == 0:
+                    return ChironAST.ADTValue(expr.val, [])
+                return expr.val
             case ChironAST.UMinus():
                 val = self.forceValue(self.expressionEvaluation(expr.expr))
                 if isinstance(val, str):
@@ -207,6 +214,7 @@ class ConcreteInterpreter(Interpreter):
             case ChironAST.LambdaExpr(): return self.handleLambdaExpr(expr)
             case ChironAST.LazyExpr(): return self.handleLazyExpr(expr)
             case ChironAST.RangeExpr(): return self.handleRangeExpr(expr)
+            case ChironAST.ListExpr(): return self.handleListExpr(expr)
             case ChironAST.MatchExpr(): return self.handleMatchExpr(expr)
             case ChironAST.WhereExpr(): return self.handleWhereExpr(expr)
             case _ : raise Exception(f"Unknown expression: {type(expr)}, {expr}.")
@@ -238,6 +246,53 @@ class ConcreteInterpreter(Interpreter):
         
         if not isinstance(function_name, str):
             raise Exception(f"Invalid callable: '{callname}' evaluated to '{function_name}'")
+        
+        expected_arity = None
+        if function_name in self.adt:
+            expected_arity = len(self.adt[function_name])
+        elif function_name in self.function_def:
+            entry = self.function_def[function_name]
+            if isinstance(entry, dict) and entry.get('type') == 'lambda':
+                expected_arity = len(entry['params'])
+            elif isinstance(entry, tuple):
+                expected_arity = len(entry[0])
+        else:
+            builtins = {"force": 1, "take": 2, "length": 1, "map": 2, "filter": 2, "fold": 3, "head": 1, "tail": 1, "nth": 2, "cons": 2, "zipWith": 3}
+            expected_arity = builtins.get(function_name)
+
+        if expected_arity is not None and len(args) < expected_arity:
+            self.lambda_counter += 1
+            curried_name = f"__curried_auto_{self.lambda_counter}"
+            
+            eval_args = [self.expressionEvaluation(arg) for arg in args]
+            curried_scope = {}
+            new_args = []
+            
+            for i, val in enumerate(eval_args):
+                var_name = f":__c_val_{self.lambda_counter}_{i}"
+                curried_scope[var_name] = val
+                new_args.append(ChironAST.Var(var_name))
+            
+            missing_count = expected_arity - len(args)
+            missing_params = [f":__c_missing_{i}" for i in range(missing_count)]
+            new_args.extend([ChironAST.Var(p) for p in missing_params])
+            
+            body_expr = ChironAST.FunctionExpr(ChironAST.NameVal(function_name), new_args)
+            
+            self.function_def[curried_name] = {
+                'type': 'lambda',
+                'params': missing_params,
+                'body': body_expr,
+                'closure': list(self.stack) + [curried_scope]
+            }
+            return curried_name
+
+        if function_name in self.adt:
+            expected_args = self.adt[function_name]
+            if len(expected_args) != len(args):
+                raise Exception(f"ADT Variant {function_name} expects {len(expected_args)} args.")
+            eval_args = [self.expressionEvaluation(arg) for arg in args]
+            return ChironAST.ADTValue(function_name, eval_args)
 
         if function_name not in self.function_def:
             builtin_result = self.tryBuiltinFunction(function_name, args)
@@ -283,17 +338,35 @@ class ConcreteInterpreter(Interpreter):
 
     def handleAssignment(self, stmt):
         print("  Assignment Statement")
-        varname = stmt.lvar.varname
         val = self.expressionEvaluation(stmt.rexpr)
         
-        # Lexical assignment: traverse backwards to update existing variable in its defining scope
-        for scope in reversed(self.stack):
-            if varname in scope:
-                scope[varname] = val
-                return 1
+        if len(stmt.lvars) > 1:
+            val = self.forceValue(val)
+            if not isinstance(val, list) and not isinstance(val, InfiniteRange):
+                raise Exception("Cannot unpack non-list value")
+            if isinstance(val, list) and len(val) < len(stmt.lvars):
+                raise Exception(f"Not enough values to unpack: expected {len(stmt.lvars)}, got {len(val)}")
+            
+            for i, var in enumerate(stmt.lvars):
+                varname = var.varname
+                item_val = val.get(i) if isinstance(val, InfiniteRange) else val[i]
                 
-        # If not found in any outer scope, create a new variable in the current local scope
-        self.stack[-1][varname] = val
+                assigned = False
+                for scope in reversed(self.stack):
+                    if varname in scope:
+                        scope[varname] = item_val
+                        assigned = True
+                        break
+                if not assigned:
+                    self.stack[-1][varname] = item_val
+        else:
+            varname = stmt.lvars[0].varname
+            for scope in reversed(self.stack):
+                if varname in scope:
+                    scope[varname] = val
+                    return 1
+            self.stack[-1][varname] = val
+            
         return 1
 
     def handleCondition(self, stmt, tgt):
@@ -340,7 +413,6 @@ class ConcreteInterpreter(Interpreter):
     
     def handleFunctionDefCommand(self, stmt, tgt):
         print(" FunctionDefCommand")
-        # Capture the environment by copying references to current dicts
         lexical_env = list(self.stack)
         self.function_def[stmt.funcname] = (stmt.params, self.pc + 1, lexical_env)
         return tgt
@@ -349,7 +421,6 @@ class ConcreteInterpreter(Interpreter):
         self.lambda_counter += 1
         lambda_name = f"__lambda_{self.lambda_counter}"
         
-        # Capture the environment by reference, NOT by flattening into a new dict
         lexical_env = list(self.stack)
         
         self.function_def[lambda_name] = {
@@ -361,6 +432,12 @@ class ConcreteInterpreter(Interpreter):
         
         return lambda_name
     
+    def handleTypeDefCommand(self, stmt, tgt):
+        print("  TypeDefCommand")
+        for variant_name, params in stmt.variants.items():
+            self.adt[variant_name] = params
+        return tgt
+    
     def executeLambda(self, lambda_def, args):
         params = lambda_def['params']
         body = lambda_def['body']
@@ -369,17 +446,14 @@ class ConcreteInterpreter(Interpreter):
         if len(params) != len(args):
             raise Exception(f"Lambda argument count mismatch: expected {len(params)}, got {len(args)}.")
         
-        # Evaluate arguments in the caller's scope
         eval_args = [self.expressionEvaluation(arg) for arg in args]
         local_scope = dict(zip(params, eval_args))
         
-        # Context switch: swap dynamic stack for lambda's lexical closure
         old_stack = self.stack
         self.stack = list(closure) + [local_scope]
         
         ret_value = self.expressionEvaluation(body)
         
-        # Restore environment
         self.stack = old_stack
         
         return ret_value
@@ -395,6 +469,8 @@ class ConcreteInterpreter(Interpreter):
                 self.stack = old_stack
                 val.evaluated = True
             return val.cached_value
+        elif isinstance(val, list):
+            return [self.forceValue(v) for v in val]
         return val
     
     def handleLazyExpr(self, expr):
@@ -408,20 +484,44 @@ class ConcreteInterpreter(Interpreter):
             return list(range(start, end + 1))
         else:
             return InfiniteRange(start)
+        
+    def handleListExpr(self, expr):
+        return [self.expressionEvaluation(e) for e in expr.elements]
     
     # -- Pattern Matching --
 
     def handleMatchExpr(self, expr):
         subject_val = self.forceValue(self.expressionEvaluation(expr.subject))
         
-        for pattern, result_expr in expr.cases:
+        def is_match(pattern, subject, env):
             if isinstance(pattern, ChironAST.NameVal) and pattern.val == "_":
-                return self.expressionEvaluation(result_expr)
+                return True
             elif isinstance(pattern, ChironAST.Num):
-                if subject_val == pattern.val:
-                    return self.expressionEvaluation(result_expr)
+                return subject == pattern.val
             elif isinstance(pattern, ChironAST.Var):
-                self.stack.append({pattern.varname: subject_val})
+                env[pattern.varname] = subject
+                return True
+            elif isinstance(pattern, ChironAST.ADTPattern):
+                if isinstance(subject, ChironAST.ADTValue) and subject.label == pattern.label:
+                    if len(subject.values) != len(pattern.variables): raise Exception("Arity mismatch")
+                    for var_name, val in zip(pattern.variables, subject.values):
+                        env[var_name] = val
+                    return True
+                return False
+            elif isinstance(pattern, ChironAST.ListPattern):
+                subject = self.forceValue(subject)
+                if isinstance(subject, list) and len(subject) == len(pattern.patterns):
+                    for pat, val in zip(pattern.patterns, subject):
+                        if not is_match(pat, val, env):
+                            return False
+                    return True
+                return False
+            return False
+
+        for pattern, result_expr in expr.cases:
+            env = {}
+            if is_match(pattern, subject_val, env):
+                self.stack.append(env)
                 result = self.expressionEvaluation(result_expr)
                 self.stack.pop()
                 return result
