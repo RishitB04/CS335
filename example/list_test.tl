@@ -1,8 +1,15 @@
-:x, :y, :z = [10, 20, 30]
+:myList = [10, 20, 30, 40]
 
-:first, :second = [1..]
+:a, :b, :c, :d = :myList
+
+:firstInf, :secondInf = [100..]
 
 pendown
-forward :x
+forward :a + :b
 right 90
-forward :first + :second
+forward :c + :d
+right 90
+forward :secondInf - 20
+right 90
+forward :firstInf - 20
+penup

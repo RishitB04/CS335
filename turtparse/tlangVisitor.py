@@ -209,6 +209,11 @@ class tlangVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by tlangParser#listPattern.
+    def visitListPattern(self, ctx:tlangParser.ListPatternContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by tlangParser#whereBinding.
     def visitWhereBinding(self, ctx:tlangParser.WhereBindingContext):
         return self.visitChildren(ctx)

@@ -179,7 +179,7 @@ class astGenPass(tlangVisitor):
         self.repeatInstrCount += 1
         repeatNum = self.visit(ctx.value())
         counterVar = ChironAST.Var(":__rep_counter_" + str(self.repeatInstrCount))
-        counterVarInitInstr = ChironAST.AssignmentCommand(counterVar, repeatNum)
+        counterVarInitInstr = ChironAST.AssignmentCommand([counterVar], repeatNum)
         constZero = ChironAST.Num(0)
         constOne = ChironAST.Num(1)
         loopCond = ChironAST.ConditionCommand(ChironAST.GT(counterVar, constZero))
@@ -351,16 +351,3 @@ class astGenPass(tlangVisitor):
             variants[variant_name] = params
             
         return [(ChironAST.TypeDefCommand(typename, variants), 1)]
-    
-    def visitPattern(self, ctx:tlangParser.PatternContext):
-        if ctx.NUM():
-            return ChironAST.Num(ctx.NUM().getText())
-        elif ctx.VAR():
-            return ChironAST.Var(ctx.VAR().getText())
-        elif ctx.typeVariant():
-            variant_ctx = ctx.typeVariant()
-            label = variant_ctx.NAME().getText()
-            variables = [v.getText() for v in variant_ctx.VAR()] if variant_ctx.VAR() else []
-            return ChironAST.ADTPattern(label, variables)
-        else:
-            return ChironAST.NameVal("_")

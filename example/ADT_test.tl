@@ -1,18 +1,20 @@
-type Option = Some(:v) | None
+type Option = Some(:val) | None
+type Shape = Circle(:radius) | Rect(:w, :h)
 
-:getTopTwo = take(2)
-:resList = :getTopTwo([1..10])
+:myVal = Some(50)
+:myShape = Rect(100, 50)
 
-:resOptions = :resList |> map(Some)
+:multiplier = match :myVal with
+| None => 0
+| Some(:v) => :v
 
-:add = lambda :a :b => :a + :b
-:sumFold = fold(:add)
-:sumFromZero = :sumFold(0)
-:resSum = :sumFromZero([1, 2, 3, 4])
-
-:finalVal = match nth(:resOptions, 1) with 
-    | Some(:x) => :x * :resSum 
-    | None => 0
+:moveDist = match :myShape with
+| Circle(:r) => :r * 2
+| Rect(:w, :h) => :w + :h
+| _ => 0
 
 pendown
-forward :finalVal
+forward :multiplier
+right 90
+forward :moveDist
+penup
