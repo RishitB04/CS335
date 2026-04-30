@@ -670,4 +670,24 @@ class ConcreteInterpreter(Interpreter):
                 accumulator = self.callFunctionByName(fn, [accumulator, elem])
             return accumulator
         
+        elif function_name == "compose":
+            if len(args) != 2:
+                raise Exception("compose requires exactly 2 arguments")
+
+            f = self.expressionEvaluation(args[0])
+            g = self.expressionEvaluation(args[1])
+
+            # create new lambda function
+            self.lambda_counter += 1
+            lambda_name = f"__lambda_{self.lambda_counter}"
+
+            def composed_func(x):
+                gx = self.callFunctionByName(g, [x])
+                return self.callFunctionByName(f, [gx])
+
+            # store as lambda-like structure
+            self.function_def[lambda_name] = {"type": "compose", "f": f, "g": g}
+
+            return lambda_name
+        
         return None

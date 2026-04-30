@@ -175,7 +175,6 @@ class astGenPass(tlangVisitor):
             return ChironAST.NameVal(ctx.NAME().getText())
 
     def visitLoop(self, ctx:tlangParser.LoopContext):
-        # insert counter variable in IR for tracking repeat count
         self.repeatInstrCount += 1
         repeatNum = self.visit(ctx.value())
         counterVar = ChironAST.Var(":__rep_counter_" + str(self.repeatInstrCount))
